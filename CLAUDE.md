@@ -15,6 +15,9 @@
 웹 빌드는 헤드리스 크롬에서 PC 모드와 모바일 에뮬레이션으로 확인했다. **휴대폰 실기 테스트는 아직이다**
 (`docs/playtest-checklist.md`).
 
+11/17 오후 기획 개편(집에서 시작하는 하루, 타이쿤풍 HUD, 2등신 SD, 업무 판단·이벤트·업그레이드)을 반영했다.
+개편 내용은 `docs/plan.md`의 "11/17 기획 변경".
+
 ## 기술 규칙 (바꾸지 말 것)
 
 - Godot **4.5 이상**, 렌더러 **Compatibility**(웹은 이것만 지원), 언어 **GDScript만**(Godot 4의 C#은 웹 내보내기 불가).
@@ -42,14 +45,17 @@ godot --headless --path . --import
 godot --headless --path . --quit-after 600
 
 # 2-1) 코어 루프 자동 플레이 (마지막 줄이 SMOKE OK, SCRIPT ERROR가 없어야 함)
-#      타이틀 화면만 도는 2)와 달리 맵·운전·대화·저장 경로를 전부 실행한다. user://save.json을 지운다.
+#      타이틀 화면만 도는 2)와 달리 집·맵·운전·대화·정산·업그레이드·저장 경로를 전부 실행한다.
+#      user://save.json을 지우므로 동시에 여러 개 돌리지 않는다.
+#      뒤에 `-- --seed=N`을 붙이면 다른 랜덤 이벤트(긴급·특가·추가 부탁)를 탄다.
+#      --headless를 빼고 `-- --shots=<절대 경로>`를 붙이면 주요 화면 스크린샷을 저장한다.
 godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
 
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
 mkdir -p build/web && godot --headless --path . --export-release "Web" build/web/index.html
 
 # 4) 로컬 서버로 확인. 같은 와이파이의 휴대폰에서 http://<PC IP>:8000 으로 접속
-python3 -m http.server 8000 -d build/web
+python3 -m http.server 8000 -d build/web   # Windows는 python
 ```
 
 `--import`가 없는 버전이면 `godot --headless --path . --editor --quit`을 쓴다.
@@ -75,13 +81,15 @@ scripts/systems/
   story.gd (autoload)    코어 루프, NPC 대화, 상점, 메뉴, 인트로, 강제 퇴근
   korean.gd              조사(을/를, 이/가, 로/으로...), 천 단위 쉼표
   sprite_util.gd         스프라이트 시트 -> SpriteFrames
-scripts/data/task_data.gd  업무(조달 요청) 데이터, 검수 등급
+scripts/data/task_data.gd  업무(조달 요청) 데이터, 검수 등급(요구 품질 기준), 시설 업그레이드
 scripts/world/
-  map_base.gd            맵 공통: ASCII 레이아웃 -> 타일, NPC·오브젝트·출구·플레이어·카메라·HUD·터치 UI 배치
+  map_base.gd            맵 공통: ASCII 레이아웃 -> 타일, NPC·오브젝트·출구·플레이어·카메라·HUD·터치 UI 배치,
+                         목표 화살표(Story.objective_target), HUD를 피하는 카메라, 작은 방은 2배 확대
   tiles.gd               코드로 만드는 TileSet, ASCII 범례, 충돌 타일
   interactable.gd        조사 가능한 오브젝트 (나라장터 PC, 자판기, 납품 차량...)
-  maps/office_map.gd     정부청사 (52x30)
-  maps/school_map.gd     한빛초등학교 (32x20)
+  maps/home_map.gd       주인공 집 (18x8): 침대·옷장·냉장고, 현관 -> 청사
+  maps/office_map.gd     정부청사 (40x24): 1층 현관 -> 집(퇴근)
+  maps/school_map.gd     한빛초등학교 (28x16)
 scripts/actors/          player.gd(4방향 이동·상호작용), npc.gd, character_visual.gd(레이어+틴트)
 scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd
 scripts/minigames/drive_game.gd  운전(운송) 미니게임
@@ -92,20 +100,32 @@ tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기�
 tools/, docs/            Godot이 무시함(.gdignore)
 ```
 
+### 하루 (story.gd)
+
+집(07:30, 첫날은 알람 인트로) -현관-> 청사 로비(09:00, 첫날은 달이 인트로) -> 업무 `DAILY_TASKS`건
+-> 1층 현관으로 퇴근 -> 집 저녁 정산(`GameState.day_log`) -> 침대에서 잠(`GameState.end_day`, 일당) -> 다음 날.
+피로도 100이면 강제 퇴근(`GameState.forced_leave`): 나르미 대사 -> 집 저녁 정산. 진행 중 업무는 다음 날로 넘어간다.
+`GameState.map_id`는 현재 맵이고 "이어서 출근하기"는 그 맵에서 재개한다.
+
 ### 코어 루프 (story.gd의 `Step`)
 
-`NONE` -팀장 대화-> `ACCEPTED` -나라장터 PC에서 업체 선택-> `VENDOR_CHOSEN` -주차장 차량-> 운전 미니게임
--> `ARRIVED`(학교 도착) -행정실 실장-> 검수(업체 품질 × 화물 상태) -> `DELIVERED` -청사 복귀, 팀장 보고-> 보상 -> `NONE`.
-하루 업무 `DAILY_TASKS`건을 마치면 팀장에게 퇴근. 피로도 100이면 강제 퇴근(`GameState.forced_leave`).
+`NONE` -팀장 대화(업무 배정, 긴급 판정)-> `ACCEPTED` -나라장터 PC에서 업체 선택(특가 판정)-> `VENDOR_CHOSEN`
+-주차장 차량-> 운전 미니게임 -> `ARRIVED`(학교 도착) -행정실 실장-> 검수 -> `DELIVERED`(추가 부탁 판정)
+-청사 복귀, 팀장 보고-> 보상(팀 예산 = 아낀 예산, 평판, 경험치, 성과급) -> `NONE`.
+검수 점수 = 업체 품질 × 화물 상태. 업무의 `required` 이상이면 보통, +15 이상이면 우수(`TaskData.grade`).
+팀 예산은 하단 바 [성장]에서 시설 업그레이드(`TaskData.UPGRADES`)에 쓴다.
 
 ### 확장하는 법
 
 - 맵 추가: `MapBase`를 상속한 스크립트 + 루트만 있는 `.tscn`. `SceneRouter.MAPS`에 id 등록.
   레이아웃 문자열은 모든 행 길이가 같아야 한다. 범례는 `Tiles.LEGEND`.
-- 업무 추가: `TaskData.TASKS`에 항목 추가. 목적지가 새 맵이면 `Story.PLACE_NAMES`와 해당 맵의 수요기관 NPC 대화도 추가.
+- 업무 추가: `TaskData.TASKS`에 항목 추가(`required`, `fragile` 포함). 업체 3곳은 "기준을 넘는 가장 싼 업체"가
+  업무마다 달라지게 값을 잡는다. 목적지가 새 맵이면 `Story.PLACE_NAMES`와 해당 맵의 수요기관 NPC 대화도 추가.
+- 업그레이드 추가: `TaskData.UPGRADES` + 효과는 `GameState.upgrade_level(id)`를 읽는 곳(Story, 운전)에 넣는다.
 - NPC 추가: `Story.NPCS`에 이름·스프라이트·색, 맵의 `npcs()`에 위치, `Story.talk()`에 대화.
 - 아이템 추가: `ItemDB.ITEMS` + 아이콘, 판매처는 `Story.VENDING_ITEMS`/`TICKET_ITEMS`.
 - 진짜 아트로 교체: 같은 파일명·같은 프레임 배치(`tools/gen_placeholders.py` 상단 설명)로 덮어쓰면 된다.
+  타일은 `TILES` 순서 = `Tiles` enum 순서(뒤에만 추가). `python tools/gen_placeholders.py <png>`는 미리보기 시트도 만든다.
   에디터에서 타일을 칠하고 싶으면 맵 씬에 TileMapLayer를 추가하고 `layout()`을 비우는 방향으로 바꾼다.
 
 ## 알려진 빈틈 (TODO)
