@@ -61,7 +61,9 @@ godot --headless --path . --fixed-fps 60 --script res://tests/drive_bot.gd
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
 mkdir -p build/web && godot --headless --path . --export-release "Web" build/web/index.html
 
-# 3-1) 더블클릭으로 여는 단일 html (제출용). wasm·pck를 압축해 넣는다. 결과: build/jodal_rookie.html (~17MB)
+# 3-1) 더블클릭으로 여는 단일 html (제출용). wasm·pck를 압축해 넣는다. 결과: build/jodal_rookie.html (~18MB)
+#      + build/jodal_rookie.zip (html + 실행 방법.txt). 다른 사람에게 보낼 때는 zip을 보낸다
+#      (메일·메신저가 .html 첨부를 막거나 바꾸는 경우가 있다).
 python3 tools/make_single_html.py   # Windows는 python
 
 # 4) 로컬 서버로 확인. 같은 와이파이의 휴대폰에서 http://<PC IP>:8000 으로 접속
@@ -70,6 +72,8 @@ python3 -m http.server 8000 -d build/web   # Windows는 python
 
 단일 html은 `file://`에서 열리므로 페이지 출처가 `null`이다. 그래서 `tools/make_single_html.py`가
 `fetch`(wasm·pck), 오디오 워클릿(blob 대신 data: 주소), 서비스 워커 조회를 가로챈다.
+실행이 안 되는 환경(미리보기 화면, 그래픽 가속 꺼짐, 오래된 브라우저, 전송 중 잘린 파일)에서는
+검은 화면 대신 한국어 안내 상자가 뜬다(`tools/make_single_html.py`의 HELP_HTML·GUARD, 이 문구만 예외로 도구에 있다).
 웹 내보내기를 다시 할 때마다 3-1)도 다시 돌린다. Godot 버전을 올리면 `file://`로 열어 콘솔 오류를 확인한다.
 
 `--import`가 없는 버전이면 `godot --headless --path . --editor --quit`을 쓴다.
