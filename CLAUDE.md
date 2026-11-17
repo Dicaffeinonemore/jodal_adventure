@@ -55,6 +55,9 @@ godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
 #      소리를 바꾼 뒤: python tools/gen_audio.py -> 1) -> 2-2)
 godot --headless --path . --script res://tests/audio_check.gd
 
+# 2-3) 운전 난이도 확인 (반응 0.35초 봇 / 입력 없음 각 5판. 마지막 줄 DRIVE OK = 봇 평균 화물 85% 이상)
+godot --headless --path . --fixed-fps 60 --script res://tests/drive_bot.gd
+
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
 mkdir -p build/web && godot --headless --path . --export-release "Web" build/web/index.html
 
@@ -74,6 +77,9 @@ python3 -m http.server 8000 -d build/web   # Windows는 python
 릴리스 빌드는 스크립트 오류를 콘솔에 찍지 않는다. 웹에서만 나는 문제는 `--export-debug`로 내보내 브라우저 콘솔을 본다.
 
 웹 주의: `JavaScriptBridge.eval()`은 JS bool을 int, 숫자를 float로 돌려준다. `== true` 비교는 런타임 오류이므로 문자열로 받는다.
+웹 소리: 단일 스레드 웹은 소리를 Web Audio 샘플로 재생한다. 오디오 버스를 실행 중에 추가하면(`AudioServer.add_bus`)
+버스끼리 순환 연결되어 **모든 소리가 무음**이 된다. 버스는 Master 하나만 쓰고 볼륨은 플레이어의 `volume_db`로 조절한다.
+소리를 고친 뒤에는 웹 빌드를 브라우저에서 실제로 들어 본다(헤드리스 테스트는 소리를 재생하지 않는다).
 웹에서는 `emulate_touch_from_mouse` 때문에 `DisplayServer.is_touchscreen_available()`이 항상 true다. 터치 판정은 `GameState.is_touch_device()`만 쓴다.
 
 ## 구조
@@ -110,13 +116,14 @@ scripts/actors/          player.gd(4방향 이동·달리기·상호작용), npc
                          character_visual.gd(피부·옷 바탕·옷 색·얼굴·머리 5레이어, 색은 틴트)
 scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd,
                          procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과)
-scripts/minigames/drive_game.gd  운전(운송) 미니게임
+scripts/minigames/drive_game.gd  운전(운송) 미니게임: 항상 한 차선은 비워 두고, 화면 위 "!"로 예고, 부딪힌 장애물은 튕겨 나감
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            갈무리 폰트 (OFL)
 assets/sprites/placeholder/  임시 도트 (tools/gen_placeholders.py로 생성)
 assets/audio/            임시 칩튠 BGM 3곡(bgm_home·town·drive, 루프)·효과음 21종 (tools/gen_audio.py로 합성, QOA 압축 임포트)
 tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)
 tests/audio_check.gd     소리 파일 임포트 확인 (BGM 루프, 효과음 존재)
+tests/drive_bot.gd       운전 난이도 확인 봇
 tools/, docs/            Godot이 무시함(.gdignore)
 ```
 

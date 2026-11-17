@@ -9,6 +9,11 @@ extends Node
 ## Web: browsers start audio only after a user gesture, so the title screen starts
 ## the music after the first tap (unlocked = true from then on).
 ## The sound setting (all / effects only / off) lives in user://settings.json, not the save.
+##
+## Everything plays on the Master bus; music and effect levels are per-player
+## volume_db. Do not add audio buses at runtime: on the web (single-threaded builds
+## play audio as Web Audio samples) Godot 4.5 wires runtime buses into a loop
+## (Master -> SFX -> Music -> Master), and Web Audio silences loops. No sound at all.
 
 enum Mode { ALL, SFX_ONLY, OFF }
 
@@ -41,16 +46,14 @@ var _last: Dictionary = {}  # effect id -> msec
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_silent = AudioServer.get_driver_name() == "Dummy"
-	_ensure_bus("Music", MUSIC_DB)
-	_ensure_bus("SFX", SFX_DB)
 	for i in 2:
 		var m := AudioStreamPlayer.new()
-		m.bus = "Music"
+		m.volume_db = MUSIC_DB
 		add_child(m)
 		_music.append(m)
 	for i in POOL:
 		var p := AudioStreamPlayer.new()
-		p.bus = "SFX"
+		p.volume_db = SFX_DB
 		add_child(p)
 		_pool.append(p)
 	_load_settings()
@@ -78,8 +81,12 @@ func play_bgm(id: String) -> void:
 	if id == _bgm:
 		return
 	_bgm = id
-	if _silent:
+	if _silent or mode != Mode.ALL:
 		return
+	_start_bgm(id)
+
+
+func _start_bgm(id: String) -> void:
 	var old := _music[_active]
 	_active = 1 - _active
 	var cur := _music[_active]
@@ -93,7 +100,7 @@ func play_bgm(id: String) -> void:
 	cur.stream = stream
 	cur.volume_db = SILENT_DB
 	cur.play()
-	create_tween().tween_property(cur, "volume_db", 0.0, FADE)
+	create_tween().tween_property(cur, "volume_db", MUSIC_DB, FADE)
 
 
 func bgm_for_map(map_id: String) -> String:
@@ -130,8 +137,14 @@ func set_mode(m: Mode) -> void:
 
 
 func _apply_mode() -> void:
-	AudioServer.set_bus_mute(AudioServer.get_bus_index("Music"), mode != Mode.ALL)
-	AudioServer.set_bus_mute(AudioServer.get_bus_index("SFX"), mode == Mode.OFF)
+	if mode != Mode.ALL:
+		for m: AudioStreamPlayer in _music:
+			m.stop()
+	elif not _silent and _bgm != "" and not (_music[0].playing or _music[1].playing):
+		_start_bgm(_bgm)
+	if mode == Mode.OFF:
+		for p: AudioStreamPlayer in _pool:
+			p.stop()
 
 
 func _load_settings() -> void:
@@ -166,16 +179,6 @@ func _on_popup(text: String, color: Color) -> void:
 func _on_node_added(node: Node) -> void:
 	if node is BaseButton and not node.has_meta("sfx_off"):
 		(node as BaseButton).pressed.connect(play.bind("confirm", 0.0))
-
-
-func _ensure_bus(bus_name: String, db: float) -> void:
-	if AudioServer.get_bus_index(bus_name) >= 0:
-		return
-	AudioServer.add_bus()
-	var idx := AudioServer.bus_count - 1
-	AudioServer.set_bus_name(idx, bus_name)
-	AudioServer.set_bus_send(idx, "Master")
-	AudioServer.set_bus_volume_db(idx, db)
 
 
 func _stream(file: String) -> AudioStream:

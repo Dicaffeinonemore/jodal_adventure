@@ -9,6 +9,10 @@ extends Node2D
 ## Pickups: stars pay a bonus (Story.STAR_BONUS), repair kits restore cargo.
 ## Urgent tasks are shorter but busier; fragile cargo and the truck upgrade
 ## scale damage (Story.cargo_damage_mult()).
+## Fairness: a new obstacle never closes the last open lane near the top, and a "!"
+## at the top of the lane warns before it scrolls in. A hit knocks the obstacle off
+## the road; during the short safe time after a hit, anything the truck touches is
+## pushed aside (no damage) instead of driving through the truck.
 
 const DURATION := 25.0
 const URGENT_DURATION := 20.0
@@ -16,20 +20,23 @@ const PICKUP_CHANCE := 0.35
 const REPAIR_AMOUNT := 10
 const LANES := 3
 const LANE_W := 44.0
-const BASE_SPEED := 120.0
-const MAX_SPEED := 190.0
-const SPAWN_MIN := 0.8
-const SPAWN_MAX := 1.4
-const LANE_SWITCH_TIME := 0.12
-const INVULN_TIME := 0.8
+const BASE_SPEED := 100.0
+const MAX_SPEED := 150.0
+const SPAWN_MIN := 1.2
+const SPAWN_MAX := 1.8
+const SPAWN_END_FACTOR := 0.8  # spawn gaps shrink to this by the end of the trip
+const SPAWN_Y := -70.0  # off screen; the lane warning shows until it scrolls in
+const OPEN_WINDOW := 170.0  # obstacles above this y count as blocking their lane
+const LANE_SWITCH_TIME := 0.1
+const INVULN_TIME := 1.0
 const DROWSY_MIN := 3.0
 const DROWSY_MAX := 5.5
 
 ## kind -> texture, cargo damage, own speed (fraction of road speed it moves *with* us)
 const OBSTACLES := {
-	"car": {"tex": "res://assets/sprites/placeholder/car_npc.png", "damage": 20, "drift": 0.45},
-	"cone": {"tex": "res://assets/sprites/placeholder/cone.png", "damage": 10, "drift": 0.0},
-	"bump": {"tex": "res://assets/sprites/placeholder/speed_bump.png", "damage": 8, "drift": 0.0},
+	"car": {"tex": "res://assets/sprites/placeholder/car_npc.png", "damage": 12, "drift": 0.3},
+	"cone": {"tex": "res://assets/sprites/placeholder/cone.png", "damage": 8, "drift": 0.0},
+	"bump": {"tex": "res://assets/sprites/placeholder/speed_bump.png", "damage": 6, "drift": 0.0},
 	"star": {"tex": "res://assets/sprites/placeholder/pickup_star.png", "damage": 0, "drift": 0.0},
 	"repair": {"tex": "res://assets/sprites/placeholder/pickup_repair.png", "damage": 0, "drift": 0.0},
 }
@@ -71,7 +78,7 @@ func _ready() -> void:
 	_rng.randomize()
 	if Story.is_urgent():
 		_duration = URGENT_DURATION
-		_density = 0.7
+		_density = 0.85
 	_damage_mult = Story.cargo_damage_mult()
 	_truck = Sprite2D.new()
 	_truck.texture = load("res://assets/sprites/placeholder/car_player.png") as Texture2D
@@ -121,11 +128,11 @@ func _drive(delta: float) -> void:
 	_spawn_timer -= delta
 	if _spawn_timer <= 0.0 and _elapsed < _duration - 2.0:
 		_spawn_obstacle()
-		_spawn_timer = _rng.randf_range(SPAWN_MIN, SPAWN_MAX) * lerpf(1.0, 0.7, t) * _density
+		_spawn_timer = _rng.randf_range(SPAWN_MIN, SPAWN_MAX) * lerpf(1.0, SPAWN_END_FACTOR, t) * _density
 
 	_update_drowsiness(delta)
 
-	var truck_rect := _rect_of(_truck).grow(-2)
+	var truck_rect := _rect_of(_truck).grow(-3)
 	for i in range(_obstacles.size() - 1, -1, -1):
 		var ob: Dictionary = _obstacles[i]
 		var node: Sprite2D = ob["node"]
@@ -137,13 +144,15 @@ func _drive(delta: float) -> void:
 			continue
 		var kind := str(ob["kind"])
 		var pickup := kind == "star" or kind == "repair"
-		if (pickup or _invuln <= 0.0) and truck_rect.intersects(_rect_of(node).grow(-1)):
+		if truck_rect.intersects(_rect_of(node).grow(-3)):
+			_obstacles.remove_at(i)
 			if pickup:
 				_collect(kind)
-			else:
+				node.queue_free()
+				continue
+			if _invuln <= 0.0:
 				_hit(int(info["damage"]), kind)
-			node.queue_free()
-			_obstacles.remove_at(i)
+			_knock_away(node)
 
 	if _elapsed >= _duration:
 		_finish()
@@ -166,7 +175,20 @@ func _update_drowsiness(delta: float) -> void:
 func _spawn_obstacle() -> void:
 	var kinds := ["car", "car", "cone", "bump"]
 	var kind: String = kinds[_rng.randi() % kinds.size()]
-	var lane := _rng.randi() % LANES
+	# Keep a lane open: lanes already holding an obstacle near the top are taken,
+	# and a new one may only go where at least one other lane stays free.
+	var blocked := {}
+	for ob: Dictionary in _obstacles:
+		var k := str(ob["kind"])
+		if k != "star" and k != "repair" and (ob["node"] as Sprite2D).position.y < OPEN_WINDOW:
+			blocked[int(ob["lane"])] = true
+	var free: Array[int] = []
+	for lane in LANES:
+		if not blocked.has(lane):
+			free.append(lane)
+	if free.size() < 2:
+		return  # placing one more would wall off the road; try again next time
+	var lane: int = free[_rng.randi() % free.size()]
 	_spawn(kind, lane)
 	if _rng.randf() < PICKUP_CHANCE:
 		var other := (lane + 1 + _rng.randi() % (LANES - 1)) % LANES
@@ -176,7 +198,7 @@ func _spawn_obstacle() -> void:
 func _spawn(kind: String, lane: int) -> void:
 	var node := Sprite2D.new()
 	node.texture = load(str(OBSTACLES[kind]["tex"])) as Texture2D
-	node.position = Vector2(_lane_x(lane), -30)
+	node.position = Vector2(_lane_x(lane), SPAWN_Y)
 	add_child(node)
 	_obstacles.append({"node": node, "kind": kind, "lane": lane})
 
@@ -211,6 +233,26 @@ func _hit(damage: int, kind: String) -> void:
 	tw.tween_property(self, "position", Vector2(3, 0), 0.04)
 	tw.tween_property(self, "position", Vector2(-3, 0), 0.04)
 	tw.tween_property(self, "position", Vector2.ZERO, 0.04)
+	# the truck wobbles and flashes red
+	var wob := create_tween()
+	wob.tween_property(_truck, "rotation", 0.25, 0.06)
+	wob.tween_property(_truck, "rotation", -0.18, 0.08)
+	wob.tween_property(_truck, "rotation", 0.0, 0.08)
+	_truck.self_modulate = Color(1, 0.5, 0.5)
+	create_tween().tween_property(_truck, "self_modulate", Color.WHITE, 0.35)
+
+
+## The obstacle flies off the road, spinning, instead of passing through the truck.
+func _knock_away(node: Sprite2D) -> void:
+	var side := -1.0 if node.position.x < _truck.position.x else 1.0
+	if is_equal_approx(node.position.x, _truck.position.x):
+		side = -1.0 if _lane == LANES - 1 else 1.0
+	node.z_index = 6
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(node, "position", node.position + Vector2(side * 70.0, -36.0), 0.45) 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(node, "rotation", side * TAU, 0.45)
+	tw.tween_property(node, "modulate:a", 0.0, 0.45).set_delay(0.15)
+	tw.chain().tween_callback(node.queue_free)
 
 
 func _change_lane(dir: int) -> void:
@@ -265,6 +307,18 @@ func _draw() -> void:
 		while y < _view.y:
 			draw_rect(Rect2(x, y, 2, 14), Color("f0d060"))
 			y += 32.0
+	# "!" at the top of a lane while an obstacle is still above the screen
+	for ob: Dictionary in _obstacles:
+		var k := str(ob["kind"])
+		var y := (ob["node"] as Sprite2D).position.y
+		if k == "star" or k == "repair" or y > -8.0:
+			continue
+		var x := _lane_x(int(ob["lane"]))
+		var blink := 1.0 if fmod(_elapsed, 0.3) < 0.2 else 0.5
+		draw_colored_polygon(PackedVector2Array([Vector2(x, 4), Vector2(x + 8, 18), Vector2(x - 8, 18)]),
+				Color(0.95, 0.3, 0.25, blink))
+		draw_rect(Rect2(x - 1, 8, 2, 6), Color(1, 1, 1, blink))
+		draw_rect(Rect2(x - 1, 15, 2, 2), Color(1, 1, 1, blink))
 	# roadside trees for a sense of speed
 	var tree_y := fmod(_scroll * 2.0, 64.0) - 64.0
 	while tree_y < _view.y:
