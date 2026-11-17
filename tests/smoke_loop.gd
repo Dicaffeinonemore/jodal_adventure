@@ -1,16 +1,24 @@
 extends SceneTree
-## Headless smoke test: plays the core loop through the real scenes, input
-## actions and dialogue, and fails loudly if anything gets stuck.
+## Headless smoke test: plays the day cycle and the core loop through the real
+## scenes, input actions and dialogue, and fails loudly if anything gets stuck.
 ##
 ##   godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
 ##
 ## Prints "SMOKE OK" at the end. Any SCRIPT ERROR in the output is a failure too.
 ## Deletes user://save.json before starting (the test saves on its own).
+## Screenshots: run without --headless and add  -- --shots=<absolute dir>
+## Other random events: add  -- --seed=<n>
 
 const TIMEOUT_FRAMES := 60 * 120
+const LEADER := Vector2i(13, 4)
+const PC := Vector2i(13, 7)
+const CAR := Vector2i(31, 20)
+const OFFICER := Vector2i(6, 5)
 
 var _failed := false
 var _step := ""
+var _shots := ""
+var _seed := 20261117
 
 
 func _initialize() -> void:
@@ -18,13 +26,17 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--shots="):
+			_shots = arg.trim_prefix("--shots=")
+		if arg.begins_with("--seed="):
+			_seed = int(arg.trim_prefix("--seed="))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://save.json"))
 	await _frames(5)
 	var gs := _a("GameState")
-	var story := _a("Story")
-	var router := _a("SceneRouter")
+	(gs.get("rng") as RandomNumberGenerator).seed = _seed
 
-	# ---- title -> character create -> office (intro)
+	# ---- title -> character create -> home (alarm intro)
 	_step = "title"
 	change_scene_to_file("res://scenes/title/title.tscn")
 	await _frames(10)
@@ -33,37 +45,85 @@ func _run() -> void:
 	_check(current_scene.get("_started") == true, "title did not react to a tap")
 
 	_step = "character create"
-	router.goto("res://scenes/character_create/character_create.tscn")
+	_a("SceneRouter").goto("res://scenes/character_create/character_create.tscn")
 	await _wait_router()
 	var cc := current_scene
-	var name_edit: LineEdit = cc.get("_name_edit")
-	name_edit.text = "테스트"
+	(cc.get("_name_edit") as LineEdit).text = "테스트"
 	cc.call("_change", "hair_style", 1)
-	cc.call("_change", "hair_color", -1)
 	cc.call("_on_confirm")
 	await _wait_router()
-	_check(str(gs.get("player_name")) == "테스트", "name not saved")
-	_check(current_scene.get("map_size_px") != null, "office map not loaded")
+	_check(_map() == "home", "new game should start at home, got %s" % _map())
 
-	_step = "intro"
-	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "intro dialogue never opened")
+	_step = "home intro"
+	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "home intro never opened")
+	await _shot("01_home_intro", 60)
+	await _drain_dialogue()
+	_check(gs.call("has_flag", "home_intro"), "home_intro flag missing")
+
+	_step = "fridge"
+	var bars := int(gs.call("item_count", "energybar"))
+	await _walk_and_interact(Vector2i(15, 3), "up")
+	await _drain_dialogue()
+	_check(int(gs.call("item_count", "energybar")) == bars + 1, "fridge gave no energy bar")
+
+	_step = "commute"
+	await _walk_out(Vector2i(8, 6))
+	_check(_map() == "office", "home door did not lead to the office")
+	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "office intro never opened")
 	await _drain_dialogue()
 	_check(gs.call("has_flag", "intro_done"), "intro_done flag missing")
+	await _shot("02_lobby", 20)
 
-	# ---- three tasks; the third one should trigger a forced leave on the way back
-	for i in 3:
-		await _one_task(i)
-		if _failed:
+	_step = "leave early"
+	await _walk_out(Vector2i(11, 22), false)
+	_check(_map() == "office", "office door let the player leave before work was done")
+
+	# ---- tasks until the day ends (forced leave or 3 tasks + door)
+	var day := int(gs.get("day"))
+	for i in 4:
+		if _failed or int(gs.get("day")) != day or bool(gs.get("day_over")):
 			break
+		if int(gs.get("tasks_done_today")) >= 3:
+			_step = "leave after work"
+			await _walk_out(Vector2i(11, 22))
+			await _drain_dialogue()
+			break
+		await _one_task(i)
 
 	if not _failed:
-		_step = "end of day"
-		# Task 3 hit 100 fatigue on return -> forced leave -> day 2, report pending.
-		_check(int(gs.get("day")) == 2, "expected forced leave to start day 2, day=%d" % int(gs.get("day")))
-		_check(int(story.call("step")) == 4, "task 3 report should still be pending")
-		await _walk_and_interact(Vector2i(13, 5), "up")
+		_step = "evening"
+		await _until(func() -> bool: return _map() == "home" and bool(gs.get("day_over")), "never got home in the evening")
 		await _drain_dialogue()
-		_check(int(gs.get("tasks_completed")) == 3, "task 3 report failed")
+		await _walk_out(Vector2i(8, 6), false)
+		_check(_map() == "home", "could leave home after the day was over")
+
+	if not _failed:
+		_step = "sleep"
+		await _walk_and_interact(Vector2i(2, 2), "left")
+		await _drain_dialogue([0])
+		await _wait_router()
+		_check(int(gs.get("day")) == day + 1, "sleeping did not start the next day")
+		_check(not bool(gs.get("day_over")), "day_over still set in the morning")
+
+	if not _failed:
+		_step = "day 2"
+		await _walk_out(Vector2i(8, 6))
+		await _drain_dialogue()
+		_check(_map() == "office", "day 2 commute failed")
+		if int(_a("Story").call("step")) == 4:
+			var done := int(gs.get("tasks_completed"))
+			await _walk_and_interact(LEADER, "up")
+			await _drain_dialogue()
+			_check(int(gs.get("tasks_completed")) == done + 1, "pending report failed on day 2")
+
+	if not _failed:
+		_step = "growth"
+		gs.set("budget", 1000)
+		_a("Story").call("open_panel", "growth")
+		await _shot("10_growth", 60)
+		await _drain_dialogue([0, 0, 3])  # truck -> upgrade -> close
+		_check(int(gs.call("upgrade_level", "truck")) == 1, "truck upgrade not bought")
+		_check(int(gs.get("budget")) == 880, "upgrade cost not paid")
 
 	if not _failed:
 		_step = "menu + items"
@@ -71,28 +131,19 @@ func _run() -> void:
 		gs.call("add_fatigue", 50)
 		_press("cancel")
 		await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "menu did not open")
-		await _drain_dialogue()  # picks option 0 = 아이템, then option 0 = first item
-		_check(int(gs.get("fatigue")) < 50, "item from menu did not reduce fatigue")
-		gs.call("add_item", "coffee")
-		_press("quick_item")
-		await _frames(3)
+		await _drain_dialogue([1, 0])  # 가방 -> first item
+		_check(int(gs.get("fatigue")) < 50, "item from the bag did not reduce fatigue")
 
 	if not _failed:
 		_step = "save / load"
 		gs.call("save_game")
 		var budget := int(gs.get("budget"))
 		gs.set("budget", 0)
+		gs.set("map_id", "school")
 		_check(gs.call("load_game"), "load_game failed")
 		_check(int(gs.get("budget")) == budget, "budget not restored by load")
-
-	if not _failed:
-		_step = "day end via team leader"
-		gs.set("tasks_done_today", 3)
-		var day := int(gs.get("day"))
-		await _walk_and_interact(Vector2i(13, 5), "up")
-		await _drain_dialogue()
-		await _wait_router()
-		_check(int(gs.get("day")) == day + 1, "leader did not end the day")
+		_check(str(gs.get("map_id")) == "office", "map not restored by load")
+		_check(int(gs.call("upgrade_level", "truck")) == 1, "upgrades not restored by load")
 
 	print("SMOKE OK" if not _failed else "SMOKE FAILED at: " + _step)
 	quit(1 if _failed else 0)
@@ -102,58 +153,96 @@ func _one_task(i: int) -> void:
 	var gs := _a("GameState")
 	var story := _a("Story")
 	_step = "task %d: leader" % (i + 1)
-	await _walk_and_interact(Vector2i(13, 5), "up")
+	await _walk_and_interact(LEADER, "up")
+	if i == 0:
+		await _shot("03_leader", 60)
 	await _drain_dialogue()
 	_check(int(story.call("step")) == 1, "task not accepted")
 
 	_step = "task %d: pc" % (i + 1)
-	await _walk_and_interact(Vector2i(9, 10), "up")
-	await _drain_dialogue()  # option 0 = best vendor
+	await _walk_and_interact(PC, "up")
+	if i == 0:
+		for k in 4:
+			_press("interact")
+			await _frames(20)
+		await _shot("04_pc_vendor", 60)
+	await _drain_dialogue()  # option 0 = first vendor
 	_check(int(story.call("step")) == 2, "vendor not chosen")
 
 	_step = "task %d: car" % (i + 1)
-	await _walk_and_interact(Vector2i(40, 22), "up")
+	await _walk_and_interact(CAR, "up")
 	await _drain_dialogue()  # option 0 = 출발
 	await _wait_router()
 	_check(current_scene.has_method("_drive"), "drive scene not loaded")
 
 	_step = "task %d: drive" % (i + 1)
+	if i == 0:
+		await _shot("05_drive", 60 * 8)
 	await _until(func() -> bool: return current_scene != null and current_scene.get("map_size_px") != null \
-			and not _a("SceneRouter").get("busy"),
-			"drive never finished", 60 * 70)
+			and not _a("SceneRouter").get("busy"), "drive never finished", 60 * 40)
 	_check(int(story.call("step")) == 3, "not ARRIVED after drive")
-	print("  task %d cargo=%d fatigue=%d" % [i + 1, int(gs.get("task")["cargo"]), int(gs.get("fatigue"))])
+	var t: Dictionary = gs.get("task")
+	print("  task %d (#%d urgent=%s sale=%d) cargo=%d stars=%d fatigue=%d" % [
+		i + 1, int(t["index"]), str(t.get("urgent", false)), int(t.get("discount", -1)), int(t["cargo"]),
+		int(t.get("stars", 0)), int(gs.get("fatigue"))])
 
 	_step = "task %d: inspection" % (i + 1)
-	await _walk_and_interact(Vector2i(6, 6), "up")
-	await _drain_dialogue()
+	if i == 0:
+		await _shot("06_school", 10)
+	await _walk_and_interact(OFFICER, "up")
+	if i == 0:
+		for k in 5:
+			_press("interact")
+			await _frames(25)
+		await _shot("07_inspection", 40)
+	await _drain_dialogue()  # a help request, if any, is accepted (option 0)
 	_check(int(story.call("step")) == 4, "not DELIVERED after inspection")
 
 	_step = "task %d: return" % (i + 1)
-	(current_scene.get("player") as Node2D).position = Vector2(15 * 16 + 8, 18 * 16 + 8)
-	Input.action_press("move_down")
-	await _until(func() -> bool: return _a("SceneRouter").get("busy") == true, "exit never triggered", 120)
-	Input.action_release("move_down")
-	await _wait_router()
+	await _walk_out(Vector2i(13, 14))
 	await _frames(5)
-	if int(gs.get("fatigue")) >= 100 or _a("Dialogue").get("is_open"):
-		# forced leave: narumi talks, then the day restarts at the entrance
+	if _a("Dialogue").get("is_open") or bool(gs.get("day_over")):
+		# forced leave: Narumi talks, then the evening summary at home
+		for k in 900:
+			if _map() == "home" and _a("Dialogue").get("is_open"):
+				break
+			if _a("Dialogue").get("is_open"):
+				_press("interact")
+			await _frames(3)
+		await _frames(20)
+		_press("interact")
+		await _shot("09_evening_summary", 60)
 		await _drain_dialogue()
 		await _wait_router()
-		print("  forced leave -> day %d" % int(gs.get("day")))
+		print("  forced leave after task %d (fatigue limit)" % (i + 1))
 		return
 
 	_step = "task %d: report" % (i + 1)
 	var done := int(gs.get("tasks_completed"))
-	await _walk_and_interact(Vector2i(13, 5), "up")
+	await _walk_and_interact(LEADER, "up")
 	await _drain_dialogue()
+	if i == 0:
+		await _shot("08_after_report", 8)
 	_check(int(gs.get("tasks_completed")) == done + 1, "report did not complete the task")
-	print("  task %d done: budget=%d rep=%d exp=%d" % [i + 1, int(gs.get("budget")), int(gs.get("reputation")), int(gs.get("experience"))])
+	print("  task %d done: budget=%d rep=%d exp=%d money=%d clock=%s" % [i + 1, int(gs.get("budget")),
+		int(gs.get("reputation")), int(gs.get("experience")), int(gs.get("money")), str(gs.call("clock_text"))])
 
 
 # ---------------------------------------------------------------- helpers
+func _shot(shot_name: String, wait_frames: int) -> void:
+	if _shots == "":
+		return
+	await _frames(wait_frames)
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(_shots.path_join(shot_name + ".png"))
+
+
 func _a(autoload_name: String) -> Node:
 	return root.get_node("/root/" + autoload_name)
+
+
+func _map() -> String:
+	return str(current_scene.call("map_id")) if current_scene != null and current_scene.has_method("map_id") else ""
 
 
 func _frames(n: int) -> void:
@@ -175,8 +264,10 @@ func _wait_router() -> void:
 	await _frames(3)
 
 
-## Advances every line and picks choice 0 until no dialogue is open for 30 frames.
-func _drain_dialogue() -> void:
+## Advances every line until no dialogue is open for 30 frames. Choices take the
+## next index from `picks`, then 0.
+func _drain_dialogue(picks: Array = []) -> void:
+	var queue := picks.duplicate()
 	var quiet := 0
 	var guard := 0
 	while quiet < 30 and not _failed:
@@ -189,7 +280,7 @@ func _drain_dialogue() -> void:
 			quiet = 0
 			var choices: Control = dlg.get("_choices")
 			if choices.visible and choices.get_child_count() > 0:
-				dlg.call("_on_choice", 0)
+				dlg.call("_on_choice", int(queue.pop_front()) if not queue.is_empty() else 0)
 			else:
 				_press("interact")
 		elif not _a("SceneRouter").get("busy"):
@@ -210,6 +301,22 @@ func _walk_and_interact(cell: Vector2i, facing: String) -> void:
 		return
 	_press("interact")
 	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "interaction opened no dialogue", 60)
+
+
+## Stands on `cell` and walks down into the exit below it. expect_change=false
+## checks a blocked exit (only a toast, no scene change).
+func _walk_out(cell: Vector2i, expect_change: bool = true) -> void:
+	var p := current_scene.get("player") as Node2D
+	p.position = Vector2(cell.x * 16 + 8, cell.y * 16 + 8)
+	Input.action_press("move_down")
+	if expect_change:
+		await _until(func() -> bool: return _a("SceneRouter").get("busy") == true, "exit never triggered", 120)
+		Input.action_release("move_down")
+		await _wait_router()
+	else:
+		await _frames(45)
+		Input.action_release("move_down")
+		await _frames(5)
 
 
 func _press(action: String) -> void:
