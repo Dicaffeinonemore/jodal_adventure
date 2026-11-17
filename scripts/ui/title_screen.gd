@@ -62,10 +62,14 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if _started:
 		return
-	var pressed := (event is InputEventMouseButton and (event as InputEventMouseButton).pressed) \
-		or (event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed) \
-		or (event is InputEventKey and (event as InputEventKey).pressed)
-	if not pressed:
+	# Pointers start on release: a touch is followed by an emulated mouse click,
+	# and reacting on press would let that click hit the button that just appeared
+	# under the finger ("새로 출근하기" sits where the prompt was).
+	# touchend / mouseup still count as a user gesture for fullscreen.
+	var started := (event is InputEventMouseButton and not (event as InputEventMouseButton).pressed) \
+		or (event is InputEventScreenTouch and not (event as InputEventScreenTouch).pressed) \
+		or (event is InputEventKey and (event as InputEventKey).pressed and not event.is_echo())
+	if not started:
 		return
 	_started = true
 	get_viewport().set_input_as_handled()
