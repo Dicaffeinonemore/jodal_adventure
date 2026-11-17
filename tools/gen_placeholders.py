@@ -433,6 +433,18 @@ def apron(mid, top, col, b):
     fill(top, X0 + 1, 3 + b, X0 + 14, 3 + b, (225, 225, 230, 255))
 
 
+def firefighter_gear(mid, top, col, b):
+    """Reflective stripes on the turnout coat and a red helmet with a visor."""
+    t = 15 + b
+    fill(mid, 7, t + 5, 16, t + 5, (232, 236, 96, 255))
+    fill(mid, 7, t + 6, 16, t + 6, (190, 196, 200, 255))
+    red, dark = (214, 56, 44, 255), (150, 36, 30, 255)
+    fill(top, X0, 1 + b, X0 + 15, 4 + b, red)
+    fill(top, X0 + 2, 0 + b, X0 + 13, 0 + b, red)
+    fill(top, X0 + 6, 0 + b, X0 + 9, 4 + b, (240, 220, 90, 255))  # front badge
+    fill(top, X0 - 1, 5 + b, X0 + 16, 5 + b, dark)  # brim
+
+
 def stork(img, ox, b):
     """나르미: white stork with a long orange beak and black wing tips."""
     W, Wd, K, O, R = (252, 252, 255, 255), (214, 218, 232, 255), (44, 44, 58, 255), (246, 150, 50, 255), (230, 90, 70, 255)
@@ -503,6 +515,20 @@ def make_npcs():
     human_npc("vendor", outfit(top="jumper", tie=None, pants=((90, 80, 70, 255), (70, 60, 52, 255))),
               (232, 180, 60), (40, 40, 40), 0, 0, cap((60, 110, 190, 255)), skin=(236, 196, 156))
     human_npc("cafeteria", outfit(tie=None), (240, 130, 110), (140, 140, 140), 0, 1, apron)
+    # 수요기관 사람들 (11/17: 장소마다 다른 사람이 나오도록)
+    human_npc("teacher", outfit(top="vest", tie=None), (210, 130, 96), (90, 60, 44), 3, 1)
+    human_npc("student", outfit(top="jumper", tie=None, pants=((70, 100, 170, 255), (54, 78, 140, 255))),
+              (250, 200, 60), (50, 40, 36), 4, 1, cap((240, 90, 80, 255)))
+    human_npc("officer_fire", outfit(tie=(60, 60, 70, 255)), (44, 58, 104), (40, 36, 36), 0, 0,
+              cap((36, 46, 86, 255)))
+    human_npc("firefighter", outfit(top="jumper", tie=None, pants=((150, 126, 70, 255), (120, 100, 56, 255))),
+              (196, 166, 92), (60, 44, 36), 0, 0, firefighter_gear)
+    human_npc("officer_clinic", outfit(tie=None), (246, 246, 250), (70, 50, 40), 2, 1, glasses)
+    human_npc("nurse", outfit(top="jumper", tie=None, pants=((120, 180, 210, 255), (96, 150, 180, 255))),
+              (140, 196, 226), (40, 32, 30), 4, 1)
+    human_npc("officer_center", outfit(top="vest"), (110, 132, 104), (50, 40, 36), 1, 0)
+    human_npc("citizen", outfit(top="jumper", tie=None, pants=((110, 100, 90, 255), (86, 78, 70, 255))),
+              (156, 112, 80), (214, 214, 220), 0, 0, glasses, skin=(240, 204, 170))
 
 
 # ------------------------------------------------------------------ tiles
@@ -512,7 +538,49 @@ TILES = [
     "entrance", "window_wall", "wood_floor", "pc_desk", "vending", "board", "mirror", "ticket_machine",
     "bookshelf", "water_cooler", "sofa", "rug", "printer", "table", "bed_head", "bed_foot",
     "wardrobe", "home_floor", "home_wall", "fridge", "door_mat",
+    # 11/17 수요기관 건물 외관·앞마당·실내
+    "grass_flower", "path", "hedge", "facade_school", "facade_fire", "garage_door", "facade_clinic",
+    "facade_center", "glass_door", "tile_white", "hospital_bed", "locker", "med_cabinet", "garage_floor",
+    "kiosk", "flower_bed", "chalkboard",
 ]
+
+# Outdoor palette: bright and saturated, dark outlines (the cozy look of the reference video).
+GRASS_B = (128, 200, 82, 255)
+GRASS_D = (96, 166, 64, 255)
+GRASS_L = (168, 226, 110, 255)
+WHITE_TILE = (242, 245, 248, 255)
+
+
+def tile_grass_flower(t, x):
+    fill(t, x, 0, x + 15, 15, GRASS_B)
+    for (a, b) in ((2, 3), (12, 2), (7, 9), (14, 12), (3, 13)):
+        px(t, x + a, b, GRASS_D)
+        px(t, x + a, b - 1, GRASS_L)
+    for (a, b, c) in ((4, 6, (255, 150, 176, 255)), (11, 11, (255, 255, 255, 255)), (9, 2, (255, 222, 90, 255))):
+        px(t, x + a, b, c)
+        px(t, x + a - 1, b, shade(c, 0.85))
+        px(t, x + a + 1, b, shade(c, 0.85))
+        px(t, x + a, b - 1, shade(c, 0.85))
+        px(t, x + a, b + 1, GRASS_D)
+
+
+def tile_facade(t, x, face, line, window=True, band=None):
+    """Front wall of a building seen from the yard: bricks, a window, a dark base."""
+    fill(t, x, 0, x + 15, 15, face)
+    for y in (3, 7, 11):
+        fill(t, x, y, x + 15, y, line)
+    for y, offs in ((0, (5, 13)), (4, (1, 9)), (8, (5, 13)), (12, (1, 9))):
+        for o in offs:
+            fill(t, x + o, y, x + o, y + 2, line)
+    if band:
+        fill(t, x, 0, x + 15, 1, band)
+    if window:
+        fill(t, x + 3, 3, x + 12, 10, OUTLINE)
+        fill(t, x + 4, 4, x + 11, 9, (150, 206, 246, 255))
+        fill(t, x + 4, 4, x + 11, 5, (206, 236, 252, 255))
+        fill(t, x + 7, 4, x + 8, 9, (240, 240, 244, 255))
+    fill(t, x, 14, x + 15, 15, OUTLINE)
+    fill(t, x, 13, x + 15, 13, shade(face, 0.7))
 
 FLOOR_C = (236, 226, 204, 255)
 WOOD = (214, 168, 116, 255)
@@ -715,6 +783,98 @@ def make_tiles():
             tile_planks(img, x, HOME)
             fill(img, x + 1, 3, x + 14, 13, (120, 150, 100, 255))
             fill(img, x + 2, 4, x + 13, 12, (150, 180, 120, 255))
+        elif name == "grass_flower":
+            tile_grass_flower(img, x)
+        elif name == "path":
+            fill(img, x, 0, x + 15, 15, (222, 204, 164, 255))
+            d = ImageDraw.Draw(img)
+            for (a, b, w, h) in ((1, 1, 6, 5), (9, 2, 5, 4), (2, 9, 5, 5), (9, 8, 6, 6)):
+                d.rectangle([x + a, b, x + a + w, b + h], fill=(236, 222, 190, 255), outline=(176, 156, 120, 255))
+        elif name == "hedge":
+            fill(img, x, 0, x + 15, 15, GRASS_B)
+            d = ImageDraw.Draw(img)
+            d.ellipse([x - 1, 1, x + 9, 13], fill=(70, 142, 64, 255), outline=(38, 72, 40, 255))
+            d.ellipse([x + 6, 0, x + 16, 13], fill=(70, 142, 64, 255), outline=(38, 72, 40, 255))
+            fill(img, x + 2, 3, x + 4, 4, (120, 190, 96, 255))
+            fill(img, x + 9, 2, x + 11, 3, (120, 190, 96, 255))
+            fill(img, x, 14, x + 15, 15, (52, 100, 50, 255))
+        elif name == "facade_school":
+            tile_facade(img, x, (236, 210, 164, 255), (204, 172, 128, 255), band=(150, 96, 70, 255))
+        elif name == "facade_fire":
+            tile_facade(img, x, (200, 74, 62, 255), (156, 52, 46, 255), window=False, band=(246, 246, 246, 255))
+        elif name == "garage_door":
+            fill(img, x, 0, x + 15, 15, (226, 72, 60, 255))
+            for y in range(1, 14, 3):
+                fill(img, x, y, x + 15, y, (166, 46, 40, 255))
+            fill(img, x, 0, x + 15, 0, (246, 246, 246, 255))
+            fill(img, x, 14, x + 15, 15, OUTLINE)
+        elif name == "facade_clinic":
+            tile_facade(img, x, (244, 246, 250, 255), (214, 220, 230, 255), band=(96, 184, 146, 255))
+        elif name == "facade_center":
+            tile_facade(img, x, (214, 206, 188, 255), (184, 174, 154, 255), band=(110, 132, 170, 255))
+        elif name == "glass_door":
+            fill(img, x, 0, x + 15, 15, (196, 200, 210, 255))
+            fill(img, x, 0, x + 15, 1, OUTLINE)
+            fill(img, x + 1, 2, x + 14, 15, (70, 76, 92, 255))
+            fill(img, x + 2, 3, x + 13, 15, (160, 214, 246, 255))
+            fill(img, x + 2, 3, x + 13, 5, (214, 240, 252, 255))
+            fill(img, x + 7, 3, x + 8, 15, (70, 76, 92, 255))
+            px(img, x + 6, 9, (250, 220, 120, 255))
+            px(img, x + 9, 9, (250, 220, 120, 255))
+        elif name == "tile_white":
+            tile_floor(img, x, WHITE_TILE, (218, 226, 234, 255))
+        elif name == "hospital_bed":
+            tile_floor(img, x, WHITE_TILE, (218, 226, 234, 255))
+            fill(img, x + 1, 0, x + 14, 15, (196, 204, 214, 255))
+            fill(img, x + 2, 1, x + 13, 14, (252, 252, 254, 255))
+            fill(img, x + 3, 2, x + 12, 5, (232, 238, 248, 255))
+            fill(img, x + 2, 7, x + 13, 14, (140, 210, 190, 255))
+            fill(img, x + 2, 7, x + 13, 7, (176, 230, 214, 255))
+        elif name == "locker":
+            fill(img, x, 0, x + 15, 15, (176, 176, 180, 255))
+            fill(img, x + 1, 0, x + 14, 14, (140, 164, 190, 255))
+            fill(img, x + 7, 0, x + 8, 14, (100, 120, 146, 255))
+            for xx in (2, 9):
+                for yy in (2, 4):
+                    fill(img, x + xx, yy, x + xx + 4, yy, (100, 120, 146, 255))
+            px(img, x + 6, 8, (240, 230, 160, 255))
+            px(img, x + 9, 8, (240, 230, 160, 255))
+            fill(img, x, 15, x + 15, 15, (90, 100, 120, 255))
+        elif name == "med_cabinet":
+            tile_floor(img, x, WHITE_TILE, (218, 226, 234, 255))
+            fill(img, x + 1, 0, x + 14, 14, (250, 250, 252, 255))
+            fill(img, x + 1, 14, x + 14, 15, (196, 204, 214, 255))
+            fill(img, x + 6, 3, x + 9, 11, (80, 180, 120, 255))
+            fill(img, x + 3, 6, x + 12, 8, (80, 180, 120, 255))
+        elif name == "garage_floor":
+            fill(img, x, 0, x + 15, 15, (184, 184, 188, 255))
+            for (a, b) in ((3, 4), (11, 9), (6, 13), (13, 2)):
+                px(img, x + a, b, (164, 164, 170, 255))
+            fill(img, x, 15, x + 15, 15, (170, 170, 176, 255))
+        elif name == "kiosk":
+            fill(img, x, 0, x + 15, 15, FLOOR_C)
+            fill(img, x + 3, 0, x + 12, 15, (70, 130, 200, 255))
+            fill(img, x + 4, 2, x + 11, 6, (220, 240, 255, 255))
+            fill(img, x + 5, 8, x + 7, 9, (240, 90, 80, 255))
+            fill(img, x + 9, 8, x + 10, 9, (250, 220, 90, 255))
+            fill(img, x + 5, 11, x + 10, 11, (40, 60, 100, 255))
+            fill(img, x + 3, 15, x + 12, 15, (40, 70, 120, 255))
+        elif name == "flower_bed":
+            fill(img, x, 0, x + 15, 15, GRASS_B)
+            fill(img, x, 7, x + 15, 15, (150, 96, 60, 255))
+            fill(img, x, 7, x + 15, 7, (186, 126, 82, 255))
+            fill(img, x, 15, x + 15, 15, OUTLINE)
+            d = ImageDraw.Draw(img)
+            d.ellipse([x, 0, x + 15, 9], fill=(84, 158, 72, 255))
+            for (a, b, c) in ((3, 3, (255, 140, 170, 255)), (8, 2, (255, 230, 90, 255)), (12, 4, (255, 255, 255, 255)),
+                              (6, 6, (255, 120, 110, 255))):
+                fill(img, x + a, b, x + a + 1, b + 1, c)
+        elif name == "chalkboard":
+            tile_wall(img, x)
+            fill(img, x + 1, 3, x + 14, 12, (150, 104, 66, 255))
+            fill(img, x + 2, 4, x + 13, 11, (52, 112, 82, 255))
+            fill(img, x + 4, 6, x + 9, 6, (230, 236, 220, 255))
+            fill(img, x + 4, 8, x + 11, 8, (230, 236, 220, 255))
     img.save(OUT / "tiles.png")
 
 
@@ -766,6 +926,143 @@ def make_drive():
     fill(box, 5, 7, 8, 7, (250, 250, 250, 255))
     outline(box)
     box.save(OUT / "pickup_repair.png")
+
+
+def make_vehicles():
+    """Parked vehicles seen from above, front facing down (out of the garage)."""
+    ft = Image.new("RGBA", (24, 44), T)
+    red, red_d = (214, 52, 44, 255), (160, 36, 30, 255)
+    fill(ft, 3, 1, 20, 42, red)
+    fill(ft, 3, 1, 3, 42, red_d)
+    fill(ft, 4, 3, 19, 27, (196, 200, 210, 255))  # ladder deck
+    for y in range(4, 27, 3):
+        fill(ft, 7, y, 16, y, (130, 134, 150, 255))
+    fill(ft, 7, 3, 7, 27, (130, 134, 150, 255))
+    fill(ft, 16, 3, 16, 27, (130, 134, 150, 255))
+    fill(ft, 3, 29, 20, 30, (246, 246, 246, 255))  # stripe
+    fill(ft, 5, 33, 18, 39, (170, 220, 250, 255))  # windshield
+    fill(ft, 5, 33, 18, 34, (220, 242, 252, 255))
+    fill(ft, 6, 31, 9, 32, (80, 140, 250, 255))
+    fill(ft, 14, 31, 17, 32, (250, 80, 80, 255))
+    for y in (6, 18, 34):
+        fill(ft, 0, y, 2, y + 4, (40, 40, 48, 255))
+        fill(ft, 21, y, 23, y + 4, (40, 40, 48, 255))
+    outline(ft)
+    ft.save(OUT / "firetruck.png")
+
+    amb = Image.new("RGBA", (20, 36), T)
+    fill(amb, 2, 1, 17, 34, (248, 248, 250, 255))
+    fill(amb, 2, 1, 2, 34, (210, 214, 224, 255))
+    fill(amb, 2, 20, 17, 21, (240, 120, 40, 255))
+    fill(amb, 8, 6, 11, 15, (226, 58, 50, 255))  # cross on the roof
+    fill(amb, 5, 9, 14, 12, (226, 58, 50, 255))
+    fill(amb, 4, 25, 15, 31, (170, 220, 250, 255))
+    fill(amb, 4, 23, 7, 24, (250, 80, 80, 255))
+    fill(amb, 12, 23, 15, 24, (80, 140, 250, 255))
+    for y in (5, 26):
+        fill(amb, 0, y, 1, y + 3, (40, 40, 48, 255))
+        fill(amb, 18, y, 19, y + 3, (40, 40, 48, 255))
+    outline(amb)
+    amb.save(OUT / "ambulance.png")
+
+
+def _food_sheet(name, fw, fh, draw):
+    """3 frames: full, half eaten, empty."""
+    img = Image.new("RGBA", (fw * 3, fh), T)
+    for f in range(3):
+        fr = Image.new("RGBA", (fw, fh), T)
+        draw(fr, ImageDraw.Draw(fr), f)
+        outline(fr)
+        img.paste(fr, (f * fw, 0))
+    img.save(OUT / name)
+
+
+def make_meal_scene():
+    """Art for the cafeteria meal window (Story._eat_at_cafeteria)."""
+    W, H = 160, 90
+    bg = Image.new("RGBA", (W, H), (252, 238, 208, 255))
+    d = ImageDraw.Draw(bg)
+    fill(bg, 0, 52, W - 1, H - 1, (214, 168, 116, 255))  # wainscot
+    fill(bg, 0, 52, W - 1, 53, (176, 126, 82, 255))
+    for xx in range(0, W, 12):
+        fill(bg, xx, 54, xx, H - 1, (196, 150, 102, 255))
+    # window with sky and a cloud
+    d.rectangle([12, 10, 58, 42], fill=(246, 246, 250, 255), outline=OUTLINE)
+    fill(bg, 15, 13, 55, 39, (150, 210, 250, 255))
+    fill(bg, 15, 13, 55, 18, (190, 228, 252, 255))
+    d.ellipse([22, 20, 38, 28], fill=(255, 255, 255, 255))
+    d.ellipse([30, 17, 44, 27], fill=(255, 255, 255, 255))
+    fill(bg, 35, 13, 35, 39, (246, 246, 250, 255))
+    # menu board
+    d.rectangle([98, 8, 150, 42], fill=(150, 104, 66, 255), outline=OUTLINE)
+    fill(bg, 101, 11, 147, 39, (52, 104, 78, 255))
+    for i, yy in enumerate((15, 21, 27, 33)):
+        fill(bg, 104, yy, 104 + 22 + (i % 2) * 10, yy, (236, 236, 220, 255))
+        fill(bg, 136, yy, 143, yy, (250, 220, 120, 255))
+    # pendant lamp
+    fill(bg, 79, 0, 80, 8, OUTLINE)
+    d.polygon([(72, 14), (87, 14), (83, 8), (76, 8)], fill=(250, 200, 80, 255), outline=OUTLINE)
+    fill(bg, 76, 15, 83, 16, (255, 240, 180, 255))
+    # potted plant on the right
+    d.rectangle([152, 36, 159, 52], fill=(196, 110, 70, 255), outline=OUTLINE)
+    d.ellipse([148, 22, 164, 40], fill=(84, 158, 72, 255), outline=OUTLINE)
+    bg.save(OUT / "meal_bg.png")
+
+    table = Image.new("RGBA", (W, 34), T)
+    fill(table, 0, 4, W - 1, 22, (204, 148, 96, 255))
+    fill(table, 0, 4, W - 1, 5, (228, 180, 128, 255))
+    fill(table, 0, 23, W - 1, 28, (150, 100, 62, 255))
+    fill(table, 0, 3, W - 1, 3, OUTLINE)
+    fill(table, 0, 29, W - 1, 29, OUTLINE)
+    for lx in (14, 140):
+        fill(table, lx, 30, lx + 5, 33, (120, 78, 50, 255))
+    table.save(OUT / "meal_table.png")
+
+    def gukbap(fr, d, f):
+        d.ellipse([1, 4, 22, 17], fill=(70, 50, 44, 255))  # 뚝배기
+        d.ellipse([3, 3, 20, 11], fill=(110, 80, 66, 255))
+        if f < 2:
+            top = 4 if f == 0 else 6
+            d.ellipse([4, top, 19, 11], fill=(214, 92, 56, 255))
+            for (a, b) in ((7, 6), (12, 7), (15, 6)):
+                if f == 0 or a != 12:
+                    fill(fr, a, b + (top - 4), a + 1, b + (top - 4), (110, 190, 80, 255))
+            fill(fr, 9, top + 2, 11, top + 3, (250, 240, 220, 255))
+        else:
+            d.ellipse([5, 5, 18, 10], fill=(150, 90, 66, 255))
+
+    def meal(fr, d, f):
+        fill(fr, 0, 2, 33, 19, (186, 196, 206, 255))
+        fill(fr, 0, 2, 33, 3, (210, 218, 226, 255))
+        d.ellipse([2, 4, 13, 12], fill=(250, 250, 246, 255) if f < 2 else (226, 230, 236, 255))  # rice
+        if f == 0:
+            d.ellipse([3, 3, 12, 9], fill=(255, 255, 252, 255))
+        d.ellipse([15, 4, 25, 12], fill=(200, 110, 70, 255) if f < 2 else (180, 150, 130, 255))  # soup
+        for i, c in enumerate(((110, 180, 90, 255), (240, 160, 70, 255), (250, 220, 120, 255))):
+            if f == 0 or (f == 1 and i != 1):
+                fill(fr, 3 + i * 9, 14, 8 + i * 9, 17, c)
+        fill(fr, 27, 5, 31, 7, (236, 120, 100, 255) if f == 0 else (186, 196, 206, 255))
+
+    def curry(fr, d, f):
+        d.ellipse([0, 4, 27, 17], fill=(250, 250, 252, 255))
+        d.ellipse([2, 5, 25, 15], fill=(236, 238, 242, 255))
+        if f < 2:
+            d.ellipse([4, 6, 14, 14] if f == 0 else [6, 7, 13, 13], fill=(255, 255, 250, 255))
+            d.ellipse([12, 6, 24, 14] if f == 0 else [14, 8, 22, 13], fill=(214, 150, 50, 255))
+            fill(fr, 17, 9, 18, 10, (240, 120, 50, 255))
+            if f == 0:
+                fill(fr, 20, 11, 21, 12, (240, 120, 50, 255))
+        else:
+            fill(fr, 10, 10, 16, 10, (220, 190, 120, 255))
+
+    _food_sheet("food_gukbap.png", 24, 18, gukbap)
+    _food_sheet("food_meal.png", 34, 20, meal)
+    _food_sheet("food_curry.png", 28, 18, curry)
+    spoon = Image.new("RGBA", (5, 12), T)
+    ImageDraw.Draw(spoon).ellipse([0, 0, 4, 4], fill=(226, 230, 238, 255))
+    fill(spoon, 2, 4, 2, 11, (200, 206, 216, 255))
+    outline(spoon)
+    spoon.save(OUT / "spoon.png")
 
 
 def make_icons():
@@ -835,6 +1132,9 @@ def preview(path):
              "npc_senior.png", "npc_vendor.png", "npc_cafeteria.png"]
     rows.append([Image.open(OUT / n).crop((0, 0, FW, FH)) for n in names]
                 + [player_frame(1, c, 1, 2, 4, 2, 3, 1) for c in range(4)])
+    places = ["teacher", "student", "officer_fire", "firefighter", "officer_clinic", "nurse", "officer_center",
+              "citizen"]
+    rows.append([Image.open(OUT / f"npc_{n}.png").crop((0, 0, FW, FH)) for n in places])
     sheet = Image.new("RGBA", (FW * 15, FH * len(rows) + 32), (70, 80, 110, 255))
     for y, row in enumerate(rows):
         for x, fr in enumerate(row):
@@ -852,6 +1152,8 @@ if __name__ == "__main__":
     make_npcs()
     make_tiles()
     make_drive()
+    make_vehicles()
+    make_meal_scene()
     make_icons()
     make_touch_ui()
     if len(sys.argv) > 1:

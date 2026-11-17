@@ -1,7 +1,10 @@
 extends Node
 ## Game rules and dialogue that span scenes: the day cycle (집 -> 청사 -> 집),
 ## the core loop (요청 접수 -> 업체 선정 -> 운송 -> 납품·검수 -> 보고 -> 보상),
-## NPC conversations, shops, upgrades, the menu, intros and forced leave.
+## NPC conversations, shops, the cafeteria, upgrades, the menu, intros and forced leave.
+##
+## Destinations (수요기관) are listed in DESTINATIONS: each has its own map, receiver
+## NPC (who inspects the delivery) and lines. Tasks pick one with "destination".
 ##
 ## GameState.task is {} when idle, otherwise:
 ##   {"index": int (TaskData index), "step": Step, "vendor": int (-1 = none),
@@ -36,6 +39,15 @@ const NPCS := {
 	"senior": {"name": "이 주무관", "sprite": "npc_senior.png", "color": Color("f2b8d8")},
 	"vendor": {"name": "최 사장", "sprite": "npc_vendor.png", "color": Color("f2d38a")},
 	"cafeteria": {"name": "식당 이모", "sprite": "npc_cafeteria.png", "color": Color("ffb3a0")},
+	# 수요기관
+	"teacher": {"name": "최 선생님", "sprite": "npc_teacher.png", "color": Color("ffc9a8")},
+	"student": {"name": "하늘이", "sprite": "npc_student.png", "color": Color("ffe27a")},
+	"officer_fire": {"name": "정 소방장", "sprite": "npc_officer_fire.png", "color": Color("ff9d8a")},
+	"firefighter": {"name": "강 소방교", "sprite": "npc_firefighter.png", "color": Color("ffb36b")},
+	"officer_clinic": {"name": "한 주무관", "sprite": "npc_officer_clinic.png", "color": Color("9ff0c8")},
+	"nurse": {"name": "윤 간호사", "sprite": "npc_nurse.png", "color": Color("a8dcff")},
+	"officer_center": {"name": "오 주무관", "sprite": "npc_officer_center.png", "color": Color("c8e6a0")},
+	"citizen": {"name": "동네 어르신", "sprite": "npc_citizen.png", "color": Color("e0d0c0")},
 }
 ## 출입증·옷장 화면의 선택지 이름 (GameState.LOOK_KEYS). 색 항목은 이름 대신 색 견본을 보여 준다.
 const LOOK_LABELS := {
@@ -49,26 +61,98 @@ const LOOK_NAMES := {
 }
 const SPRITE_DIR := "res://assets/sprites/placeholder/"
 
-const PLACE_NAMES := {"school": "한빛초등학교", "office": "정부청사", "home": "우리 집"}
+const PLACE_NAMES := {"office": "정부청사", "home": "우리 집"}
 
-## Shown once each, by Narumi, at the matching step of the first task.
+## 수요기관. receiver: NPC who inspects the delivery. where: how the objective names
+## them. Each needs a map (SceneRouter.MAPS) that places the receiver.
+const DESTINATIONS := {
+	"school": {
+		"name": "한빛초등학교", "receiver": "officer_school", "where": "행정실 박 실장님",
+		"idle": ["한빛초 행정실이에요. 필요한 물품이 생기면 조달청에 요청한답니다."],
+		"good": "꼼꼼하게 챙겨 주셨네요. 아이들이 정말 좋아하겠어요!",
+		"help": "혹시 시간 괜찮으면 교실까지 옮기는 것 좀 도와주실래요?",
+		"thanks": "정말 고마워요! 조달청 분들은 역시 다르네요.",
+	},
+	"fire": {
+		"name": "한빛소방서", "receiver": "officer_fire", "where": "사무실 정 소방장님",
+		"idle": ["소방 장비는 대원들 안전과 바로 이어져요.", "그래서 납품 검사도 늘 꼼꼼하게 봐요."],
+		"good": "이 정도면 현장에서 믿고 쓰겠어요. 고맙습니다!",
+		"help": "차고 선반까지 같이 옮겨 주실 수 있을까요?",
+		"thanks": "덕분에 출동 준비가 빨라졌어요!",
+	},
+	"clinic": {
+		"name": "한빛보건소", "receiver": "officer_clinic", "where": "접수대 앞 한 주무관님",
+		"idle": ["보건소는 지역 주민의 건강을 돌보는 공공기관이에요.", "진료에 쓰는 물품이 들어오면 저희가 먼저 확인해요."],
+		"good": "주민분들이 편하게 쓰시겠어요. 감사합니다!",
+		"help": "창고 정리를 조금만 도와주실래요?",
+		"thanks": "정말 고마워요! 오늘 진료 준비 끝!",
+	},
+	"center": {
+		"name": "한빛동 행정복지센터", "receiver": "officer_center", "where": "민원 창구 오 주무관님",
+		"idle": ["행정복지센터는 동네 주민의 민원과 복지를 맡고 있어요.", "주민분들이 매일 쓰는 물건이라 튼튼한 게 최고예요."],
+		"good": "주민분들이 바로 쓰실 수 있겠어요!",
+		"help": "민원실 의자 배치를 같이 해 주실래요?",
+		"thanks": "고마워요! 대기실이 훨씬 넓어 보여요.",
+	},
+}
+
+## People who only chat (no quest role).
+const AMBIENT := {
+	"senior": ["업무는 할 만해요? 팁 하나 줄게요.", "검수 기준만 넘으면 비싼 업체를 고를 필요는 없어요. 대신 운전은 조심!"],
+	"vendor": ["저희 회사도 나라장터에 입찰 참가 등록을 했어요.", "좋은 제품으로 공정하게 경쟁하겠습니다!"],
+	"cafeteria": ["오늘 국밥 맛있어요~ 옆의 식권 발매기에서 메뉴를 골라요.", "밥은 여기서 바로 먹고 가요. 하루 두 끼까지!"],
+	"teacher": ["새 물품이 들어오는 날엔 아이들이 제일 먼저 알아요.", "검수 꼼꼼히 해 주셔서 늘 고마워요."],
+	"student": ["우와, 조달청에서 왔어요?", "우리 교실 책상도 조달청이 골라 준 거예요?"],
+	"firefighter": ["장비가 튼튼해야 현장에서 마음 놓고 뛰어들 수 있어요.", "소방차는 언제든 출동할 수 있게 매일 점검해요."],
+	"nurse": ["진료실 물품은 주민 건강과 바로 이어져요.", "그래서 품질이 제일 중요해요!"],
+	"citizen": ["번호표 뽑고 기다리면 금방 불러 줘요.", "센터 의자가 낡아서 허리가 아팠는데, 새 의자 오면 좋겠네. 허허."],
+}
+
+## Shown once each, by Narumi, the first time the matching moment comes up.
+## Sources for every fact: docs/procurement-facts.md. Check it before editing.
 const POLICY_TIPS := {
-	"accepted": "조달청은 학교·소방서·병원 같은 공공기관이 필요한 물품과 서비스를 대신 구매하고 계약해요.",
-	"vendor": "공공 입찰은 국가종합전자조달시스템 '나라장터'에서 공개적으로 진행돼요. 누구나 같은 조건으로 참여할 수 있어서 공정하죠.",
-	"inspection": "납품된 물품은 계약한 규격과 품질에 맞는지 검사·검수를 거쳐요. 품질 관리가 공공조달의 신뢰를 지켜요.",
-	"report": "업체를 고를 때는 가격만 보지 않아요. 품질과 납품 능력까지 함께 따져야 예산을 제대로 아낄 수 있어요.",
+	"accepted": ["조달청은 학교·소방서·보건소 같은 공공기관이 필요한 물품·서비스·시설공사를 대신 사고 계약해요."],
+	"vendor": [
+		"공공기관 입찰 정보는 '나라장터' 한곳에 모여요. 등록한 업체라면 같은 조건으로 입찰할 수 있어요.",
+		"실제 입찰도 가장 싼 업체부터 이행 능력을 따져서 낙찰해요. 이걸 '적격심사'라고 해요.",
+	],
+	"car": [
+		"사실 진짜 조달에서는 업체가 물건을 직접 납품해요.",
+		"조달청은 계약이 잘 지켜지는지, 품질이 괜찮은지 챙기는 역할이에요. 오늘은 현장 공부 겸 같이 가 봐요!",
+	],
+	"inspection": ["납품된 물품은 계약한 규격과 품질에 맞는지 검사를 거쳐요. 품질 관리가 공공조달의 신뢰를 지켜요."],
+	"report": [
+		"업체를 고를 때는 가격만 보지 않아요. 품질과 납품 능력까지 함께 따져야 예산을 제대로 아낄 수 있어요.",
+		"조달청 청훈이 '좋은 제품을 보다 싸고, 빠르고, 바르게'예요. 오늘 한 일이 딱 그거죠!",
+	],
+	"urgent": ["재난처럼 급할 때는 입찰 공고 기간을 5일로 줄인 '긴급입찰'로 빠르게 계약하기도 해요."],
+	"place_fire": ["국민 안전과 관련된 물품은 조달청이 지정한 전문검사기관이 납품 전에 검사하기도 해요."],
+	"place_clinic": ["납품된 물품에 문제가 생기면 '조달품질신문고'로 하자를 신고할 수 있어요."],
+	"place_center": ["나라장터는 7만 1천여 공공기관과 60만여 조달업체가 함께 쓰는 시스템이에요."],
 }
 const GENERAL_TIPS := [
 	"조달청은 공공기관이 필요한 물품과 서비스를 대신 구매하고 계약하는 기관이에요.",
-	"공공 입찰은 '나라장터'에서 공개적으로 진행돼서 누구나 같은 조건으로 참여할 수 있어요.",
+	"공공기관 입찰 정보는 '나라장터' 한곳에 모여서 누구나 볼 수 있어요.",
 	"조달청은 중소기업과 혁신 기업의 제품이 공공시장에 진출하도록 돕는 일도 해요.",
-	"조달청은 비상시를 대비해 원자재를 비축하는 일도 맡고 있어요.",
+	"조달청은 알루미늄 같은 주요 원자재를 비축했다가 필요할 때 방출해요.",
 	"친환경 제품 구매도 공공조달에서 중요하게 다루는 가치예요.",
+	"공공기관은 환경표지·저탄소·우수재활용 인증을 받은 녹색제품을 의무적으로 사야 해요.",
+	"조달청은 1949년 임시외자총국으로 시작해서 1961년에 조달청이 되었어요.",
+	"나라장터는 2002년에 문을 연 국가종합전자조달시스템이에요.",
+	"조달청 본청은 대전 정부대전청사에 있고, 전국에 지방조달청이 11곳 있어요.",
+	"조달청 청훈은 '좋은 제품을 보다 싸고, 빠르고, 바르게'예요.",
+	"국가 계약에서 업체는 보통 계약금액의 10% 이상을 계약보증금으로 내요. 약속을 지키겠다는 표시예요.",
+	"국가 계약에서 물품 납품이 늦어지면 업체는 하루에 계약금액의 0.075%를 지체상금으로 물어요.",
+	"나르미는 투명을 상징하는 황새, 달이는 영리하고 민첩한 다람쥐가 모티브예요.",
 ]
 
 const VENDING_ITEMS := ["coffee", "energybar"]
-const TICKET_ITEMS := ["gukbap", "meal"]
-const QUICK_ORDER := ["coffee", "energybar", "gukbap", "meal"]
+const TICKET_MEALS := ["gukbap", "set_meal", "curry"]  # ItemDB.MEALS, eaten on the spot
+const QUICK_ORDER := ["coffee", "energybar", "gukbap", "meal"]  # gukbap / meal: old saves only
+## Result text colors on the cream meal window.
+const INK_GOOD := Color("2f8f4e")
+const INK_BAD := Color("c0392b")
+const INK_TEXT := Color("2e2636")
 
 var _busy := false
 var _forced_pending := false
@@ -109,7 +193,29 @@ func destination_id() -> String:
 
 
 func destination_name() -> String:
-	return str(PLACE_NAMES.get(destination_id(), destination_id()))
+	return place_name(destination_id())
+
+
+func place_name(id: String) -> String:
+	if DESTINATIONS.has(id):
+		return str((DESTINATIONS[id] as Dictionary)["name"])
+	return str(PLACE_NAMES.get(id, id))
+
+
+## The destination whose receiver this NPC is, or "".
+func receiver_place(npc_id: String) -> String:
+	for place: String in DESTINATIONS:
+		if str((DESTINATIONS[place] as Dictionary)["receiver"]) == npc_id:
+			return place
+	return ""
+
+
+## Delivery truck parked in a destination's yard (for MapBase.objects()).
+func parked_truck(cell: Vector2i) -> Dictionary:
+	return {
+		"id": "parked_truck", "cell": cell, "radius": 20.0,
+		"texture": SPRITE_DIR + "car_player.png", "solid": true,
+	}
 
 
 func vendor_price(i: int) -> int:
@@ -130,13 +236,10 @@ func objective_text() -> String:
 		if GameState.day_over:
 			return "목표: 침대에서 잠자기"
 		return "목표: 현관문으로 나가 출근하기"
-	if map == "school":
-		match step():
-			Step.ARRIVED:
-				return "목표: 행정실 박 실장님께 납품하기"
-			Step.DELIVERED:
-				return "목표: 아래쪽 현관으로 나가 청사로 돌아가기"
-		return "목표: 현관으로 나가 청사로 돌아가기"
+	if DESTINATIONS.has(map):
+		if step() == Step.ARRIVED and destination_id() == map:
+			return "목표: %s께 납품하기" % (DESTINATIONS[map] as Dictionary)["where"]
+		return "목표: 맨 아래 출구로 나가 청사로 돌아가기"
 	if not GameState.has_flag("intro_done"):
 		return ""
 	if GameState.task.is_empty():
@@ -164,8 +267,10 @@ func objective_target() -> String:
 		if not GameState.has_flag("home_intro"):
 			return ""
 		return "bed" if GameState.day_over else "exit:office"
-	if map == "school":
-		return "officer_school" if step() == Step.ARRIVED else "exit:office"
+	if DESTINATIONS.has(map):
+		if step() == Step.ARRIVED and destination_id() == map:
+			return str((DESTINATIONS[map] as Dictionary)["receiver"])
+		return "exit:office"
 	if not GameState.has_flag("intro_done"):
 		return ""
 	if GameState.task.is_empty():
@@ -189,8 +294,9 @@ func npc_has_news(id: String) -> bool:
 	match id:
 		"team_leader":
 			return step() == Step.DELIVERED or (step() == Step.NONE and GameState.tasks_done_today < DAILY_TASKS)
-		"officer_school":
-			return step() == Step.ARRIVED
+	var place := receiver_place(id)
+	if place != "":
+		return step() == Step.ARRIVED and destination_id() == place
 	return false
 
 
@@ -221,23 +327,17 @@ func talk(id: String) -> void:
 	match id:
 		"team_leader":
 			await _talk_team_leader()
-		"officer_school":
-			await _talk_officer()
 		"narumi":
 			await _talk_narumi()
 		"dari":
 			await _talk_dari()
-		"senior":
-			await Dialogue.say(npc_name(id), [
-				"업무는 할 만해요? 팁 하나 줄게요.",
-				"검수 기준만 넘으면 비싼 업체를 고를 필요는 없어요. 대신 운전은 조심!",
-			])
-		"vendor":
-			await Dialogue.say(npc_name(id), ["저희 회사도 나라장터에 입찰 참가 등록을 했어요.", "좋은 제품으로 공정하게 경쟁하겠습니다!"])
-		"cafeteria":
-			await Dialogue.say(npc_name(id), ["오늘 국밥 맛있어요~ 옆의 식권 발매기에서 뽑아 와요."])
 		_:
-			await Dialogue.say(npc_name(id), ["..."])
+			if receiver_place(id) != "":
+				await _talk_receiver(id)
+			elif AMBIENT.has(id):
+				await Dialogue.say(npc_name(id), AMBIENT[id])
+			else:
+				await Dialogue.say(npc_name(id), ["..."])
 	_busy = false
 
 
@@ -253,7 +353,7 @@ func interact_object(id: String) -> void:
 		"vending":
 			await _shop("자판기", VENDING_ITEMS)
 		"ticket_machine":
-			await _shop("식권 발매기", TICKET_ITEMS)
+			await _use_ticket_machine()
 		"mirror":
 			await Dialogue.say("", ["거울 속 %s 씨, 오늘도 단정해요." % GameState.player_name])
 		"notice_board":
@@ -267,6 +367,18 @@ func interact_object(id: String) -> void:
 			await _use_fridge()
 		"water_cooler":
 			await _use_cooler()
+		"parked_truck":
+			await Dialogue.say("", ["조달청 납품 차량이에요. 청사로 돌아갈 때는 맨 아래 출구로 나가요."])
+		"fire_truck":
+			await Dialogue.say("", ["출동 대기 중인 소방차예요. 반짝반짝 잘 닦여 있어요."])
+		"ambulance":
+			await Dialogue.say("", ["보건소 구급차예요. 언제든 나갈 수 있게 준비돼 있어요."])
+		"number_kiosk":
+			await Dialogue.say("번호표 발급기", ["딩동! 번호표가 나왔어요. [%03d번]" % GameState.rng.randi_range(1, 99), "민원 업무는 없으니까 마음만 받을게요."])
+		"chalkboard":
+			await Dialogue.say("", ["칠판에 '새 물품 도착하면 깨끗하게 쓰기!'라고 적혀 있어요."])
+		"med_cabinet":
+			await Dialogue.say("", ["약품장이 가지런히 정리돼 있어요."])
 		_:
 			await Dialogue.say("", ["특별한 것은 없어요."])
 	_busy = false
@@ -345,7 +457,7 @@ func on_exit(from_map: String, to_map: String, spawn: String) -> void:
 		await _go_home_evening(false)
 		_busy = false
 		return
-	if from_map == "school" and to_map == "office":
+	if DESTINATIONS.has(from_map) and to_map == "office":
 		if step() == Step.ARRIVED:
 			Dialogue.toast("아직 납품을 안 했어요! 다시 차를 타고 와야 해요.", UiTheme.COLOR_WARN)
 		await SceneRouter.goto_map(to_map, spawn)
@@ -370,9 +482,9 @@ func on_map_ready(map: String) -> void:
 			if not GameState.has_flag("intro_done"):
 				await get_tree().create_timer(0.6).timeout
 				await play_intro()
-		"school":
-			if step() == Step.ARRIVED:
-				Dialogue.toast("%s에 도착! 행정실로 가요." % destination_name())
+		_:
+			if DESTINATIONS.has(map) and step() == Step.ARRIVED and destination_id() == map:
+				Dialogue.toast("%s에 도착! %s께 가요." % [destination_name(), (DESTINATIONS[map] as Dictionary)["where"]])
 
 
 ## Called by the drive minigame when the trip ends.
@@ -427,7 +539,7 @@ func _talk_team_leader() -> void:
 	if not GameState.has_flag("met_leader"):
 		await Dialogue.say(n, [
 			"%s 씨, 반가워요. 오늘부터 우리 팀이에요." % GameState.player_name,
-			"우리 조달청은 공공기관에 필요한 물건을 대신 사서 전달하는 일을 해요.",
+			"우리 조달청은 공공기관에 필요한 물건을 대신 사고 계약하는 일을 해요.",
 			"말로 듣는 것보다 해 보는 게 빠르죠. 첫 업무 바로 갑니다!",
 		])
 		GameState.set_flag("met_leader")
@@ -457,6 +569,7 @@ func _assign_task() -> void:
 	var lines: Array = (t["brief"] as Array).duplicate()
 	if urgent:
 		lines.append("[긴급] 그리고 이건 급한 요청이에요! 보상이 1.5배예요.")
+	lines.append("납품처는 %s예요. 나라장터 PC에서 업체부터 골라 주세요." % place_name(str(t.get("destination", "school"))))
 	await Dialogue.say(npc_name("team_leader"), lines)
 	GameState.set_task({
 		"index": index, "step": Step.ACCEPTED, "vendor": -1, "cargo": 0, "grade": "",
@@ -464,6 +577,8 @@ func _assign_task() -> void:
 	})
 	GameState.advance_clock(10)
 	await _tip("accepted")
+	if urgent:
+		await _tip("urgent")
 
 
 func _use_pc() -> void:
@@ -478,27 +593,11 @@ func _use_pc() -> void:
 			var d := GameState.rng.randi_range(0, vendors.size() - 1)
 			GameState.task["discount"] = d
 			await Dialogue.say("나라장터", ["[특가] %s 가격을 낮춰 다시 제안했어요!" % Korean.i_ga(str((vendors[d] as Dictionary)["name"]))])
-	var required := int(t["required"])
-	var head := "[%s] 배정 예산 %d만원 / 검수 기준: 품질 %d점 이상" % [t["item"], int(t["budget"]), required]
-	if bool(t.get("fragile", false)):
-		head += " / 파손 주의"
-	var lines: Array = [head, "검수 점수 = 업체 품질 x 화물 상태. 기준을 넘는 가장 싼 업체를 찾아봐요!"]
-	var analysis := GameState.upgrade_level("analysis") > 0
-	for i in vendors.size():
-		var v: Dictionary = vendors[i]
-		var sale := " (특가!)" if int(GameState.task.get("discount", -1)) == i else ""
-		var line := "%s - %d만원%s / 품질 %d점\n%s" % [v["name"], vendor_price(i), sale, int(v["quality"]), v["desc"]]
-		if analysis:
-			var q := float(v["quality"])
-			line += "\n[분석] 화물 100%%면 %s, 85%%면 %s" % [TaskData.grade(q, required), TaskData.grade(q * 0.85, required)]
-		lines.append(line)
-	await Dialogue.say("나라장터", lines)
-	var options: Array = []
-	for i in vendors.size():
-		options.append("%s (%d만원, 품질 %d)" % [(vendors[i] as Dictionary)["name"], vendor_price(i), int((vendors[i] as Dictionary)["quality"])])
-	options.append("나중에 고르기")
-	var c: int = await Dialogue.choose("나라장터", "어느 업체와 계약할까요?", options)
-	if c >= vendors.size():
+	var pc := ProcurementPC.new()
+	get_tree().root.add_child(pc)
+	var c: int = await pc.run(_pc_screen(t))
+	pc.queue_free()
+	if c < 0 or c >= vendors.size():
 		return
 	var chosen: Dictionary = vendors[c]
 	GameState.task["vendor"] = c
@@ -510,6 +609,48 @@ func _use_pc() -> void:
 	await _tip("vendor")
 
 
+## Everything the 나라장터 monitor window shows (ProcurementPC.run).
+func _pc_screen(t: Dictionary) -> Dictionary:
+	var vendors: Array = t["vendors"]
+	var required := int(t["required"])
+	var tags: Array = []
+	if bool(t.get("fragile", false)):
+		tags.append("파손 주의")
+	if is_urgent():
+		tags.append("긴급")
+	var analysis := GameState.upgrade_level("analysis") > 0
+	var rows: Array = []
+	var confirms: Array = []
+	for i in vendors.size():
+		var v: Dictionary = vendors[i]
+		var note := ""
+		if analysis:
+			var q := float(v["quality"])
+			note = "[분석] 화물 100%%면 %s · 85%%면 %s" % [TaskData.grade(q, required), TaskData.grade(q * 0.85, required)]
+		rows.append({
+			"name": v["name"], "price": "%s만원" % Korean.comma(vendor_price(i)),
+			"sale": int(GameState.task.get("discount", -1)) == i, "sale_label": "특가",
+			"quality": int(v["quality"]), "desc": v["desc"], "note": note,
+		})
+		confirms.append("%s 계약할까요?\n%s만원 / 품질 %d점" % [Korean.wa(str(v["name"])), Korean.comma(vendor_price(i)), int(v["quality"])])
+	return {
+		"title": "나라장터", "subtitle": "국가종합전자조달시스템",
+		"crumb": "입찰·계약  >  %s  >  업체 선정" % t["item"],
+		"info_title": "수요기관 요청",
+		"info": [
+			["수요기관", destination_name()], ["품목", t["item"]],
+			["배정 예산", "%s만원" % Korean.comma(int(t["budget"]))], ["검수 기준", "품질 %d점 이상" % required],
+		],
+		"tags": tags,
+		"formula": "검수 점수 = 업체 품질 x 화물 상태\n남은 예산은 팀 예산이 돼요.",
+		"list_title": "참여 업체 %d곳" % vendors.size(),
+		"vendors": rows, "required": required, "quality_label": "품질 %d점",
+		"footer": "가장 싼 업체부터 기준을 넘는지 따져 봐요. 실제 '적격심사'도 낮은 가격 순으로 이행 능력을 심사해요.",
+		"btn_ok": "계약하기", "btn_later": "나중에",
+		"confirm": confirms, "btn_yes": "계약", "btn_no": "취소",
+	}
+
+
 func _use_car() -> void:
 	if step() != Step.VENDOR_CHOSEN and step() != Step.ARRIVED:
 		await Dialogue.say("", ["조달청 납품 차량이에요. 지금은 실을 물건이 없어요."])
@@ -519,12 +660,16 @@ func _use_car() -> void:
 		warn = " (파손 주의!)"
 	var c: int = await Dialogue.choose("", "%s 납품하러 출발할까요?%s" % [Korean.ro(destination_name()), warn], ["출발!", "아직"])
 	if c == 0:
+		await _tip("car")
 		SceneRouter.goto(SceneRouter.DRIVE)
 
 
-func _talk_officer() -> void:
-	var n := npc_name("officer_school")
-	if step() == Step.ARRIVED and destination_id() == "school":
+## The destination's receiver: inspects the delivery (score = quality x cargo).
+func _talk_receiver(id: String) -> void:
+	var n := npc_name(id)
+	var place := receiver_place(id)
+	var info: Dictionary = DESTINATIONS[place]
+	if step() == Step.ARRIVED and destination_id() == place:
 		var t := current_task()
 		var vendors: Array = t["vendors"]
 		var v: Dictionary = vendors[int(GameState.task["vendor"])]
@@ -532,7 +677,7 @@ func _talk_officer() -> void:
 		var required := int(t["required"])
 		var score := float(v["quality"]) * cargo / 100.0
 		var g := TaskData.grade(score, required)
-		var reaction := "꼼꼼하게 챙겨 주셨네요. 아이들이 정말 좋아하겠어요!"
+		var reaction := str(info["good"])
 		if g == "보통":
 			reaction = "기준은 통과예요. 쓰는 데 문제없겠어요."
 		elif g == "미흡":
@@ -549,23 +694,24 @@ func _talk_officer() -> void:
 		GameState.advance_clock(20)
 		GameState.popup.emit("검수 " + g, _grade_color(g))
 		if GameState.tasks_completed > 0 and GameState.rng.randf() < REQUEST_CHANCE:
-			await _officer_request(n)
+			await _officer_request(n, info)
 		await _tip("inspection")
-	elif step() == Step.DELIVERED:
+		await _tip("place_" + place)
+	elif step() == Step.DELIVERED and destination_id() == place:
 		await Dialogue.say(n, ["수고하셨어요. 청사에 돌아가서 보고 잘 하세요!"])
 	else:
-		await Dialogue.say(n, ["한빛초 행정실이에요. 필요한 물품이 생기면 조달청에 요청한답니다."])
+		await Dialogue.say(n, info["idle"])
 
 
-func _officer_request(n: String) -> void:
-	var c: int = await Dialogue.choose(n, "혹시 시간 괜찮으면 교실까지 옮기는 것 좀 도와주실래요?", ["도와드릴게요 (피로 +%d, 평판 +4)" % HELP_FATIGUE, "다음 일정이 있어서요"])
+func _officer_request(n: String, info: Dictionary) -> void:
+	var c: int = await Dialogue.choose(n, str(info["help"]), ["도와드릴게요 (피로 +%d, 평판 +4)" % HELP_FATIGUE, "다음 일정이 있어서요"])
 	if c == 0:
 		_work_fatigue(HELP_FATIGUE, true)
 		GameState.add_rewards(0, 4, 0)
 		GameState.log_add("rep", 4)
 		GameState.advance_clock(20)
 		GameState.popup.emit("평판 +4", UiTheme.COLOR_GOOD)
-		await Dialogue.say(n, ["정말 고마워요! 조달청 분들은 역시 다르네요."])
+		await Dialogue.say(n, [str(info["thanks"])])
 	else:
 		await Dialogue.say(n, ["아유, 바쁘시죠. 괜찮아요!"])
 
@@ -626,7 +772,7 @@ func _talk_narumi() -> void:
 func _talk_dari() -> void:
 	var n := npc_name("dari")
 	if GameState.fatigue >= GameState.FATIGUE_BAD_AT:
-		await Dialogue.say(n, ["얼굴이 피곤해 보여요! 구내식당 국밥 한 그릇 어때요?", "아래 메뉴 바의 [가방]에서 아이템을 쓸 수 있어요."])
+		await Dialogue.say(n, ["얼굴이 피곤해 보여요! 구내식당에서 밥 한 끼 어때요?", "식당 오른쪽 구석의 식권 발매기에서 메뉴를 고르면 바로 먹을 수 있어요."])
 	elif GameState.coffee_today > GameState.COFFEE_LIMIT:
 		await Dialogue.say(n, ["커피를 너무 많이 마셨어요! 컨디션이 떨어졌을 거예요."])
 	elif GameState.budget >= 100 and GameState.upgrades.is_empty():
@@ -773,6 +919,54 @@ func _shop(title: String, items: Array) -> void:
 			Dialogue.toast("돈이 부족해요.", UiTheme.COLOR_BAD)
 
 
+## Cafeteria: pick a meal at the ticket machine, pay, and eat it right there
+## (MealWindow shows the meal, then fatigue and condition before -> after).
+func _use_ticket_machine() -> void:
+	if GameState.meals_today >= ItemDB.MEALS_PER_DAY:
+		await Dialogue.say("식권 발매기", ["오늘은 벌써 두 끼를 먹었어요. 배가 불러서 더는 못 먹겠어요."])
+		return
+	var options: Array = []
+	for id: String in TICKET_MEALS:
+		var m := ItemDB.get_meal(id)
+		var extra := ", 컨디션 UP" if bool(m["meal_bonus"]) else ""
+		options.append("%s %s원 (피로 -%d%s)" % [m["name"], Korean.comma(int(m["price"])), int(m["fatigue"]), extra])
+	options.append("그만두기")
+	var c: int = await Dialogue.choose("식권 발매기", "어떤 메뉴를 먹을까요? (지갑 %s원)" % Korean.comma(GameState.money), options)
+	if c >= TICKET_MEALS.size():
+		return
+	var meal_id: String = TICKET_MEALS[c]
+	var meal := ItemDB.get_meal(meal_id)
+	if not GameState.spend_money(int(meal["price"])):
+		Dialogue.toast("돈이 부족해요.", UiTheme.COLOR_BAD)
+		return
+	Dialogue.toast("%s 식권이 나왔어요!" % meal["name"])
+	var r := ItemDB.eat(meal_id)
+	GameState.advance_clock(30)
+	var recovered := int(r["fatigue_before"]) - int(r["fatigue_after"])
+	var cond_before := str(r["cond_before"])
+	var cond_after := str(r["cond_after"])
+	var cond_color := INK_TEXT
+	if cond_after != cond_before:
+		cond_color = INK_GOOD
+	elif cond_after == "나쁨":
+		cond_color = INK_BAD
+	var result: Array = [
+		[str(meal["comment"]), INK_TEXT],
+		["피로 %d → %d (-%d)" % [int(r["fatigue_before"]), int(r["fatigue_after"]), recovered], INK_GOOD],
+		["컨디션 %s → %s" % [cond_before, cond_after], cond_color],
+	]
+	if bool(meal["meal_bonus"]):
+		result.append(["골고루 먹어서 오늘 하루 컨디션이 한 단계 좋아져요.", INK_GOOD])
+	var w := MealWindow.new()
+	get_tree().root.add_child(w)
+	await w.run({
+		"title": "구내식당 - %s" % meal["name"], "food": SPRITE_DIR + str(meal["food"]),
+		"eating": "냠냠 먹는 중...", "bite": "냠냠!", "result": result, "ok": "잘 먹었습니다!",
+	})
+	w.queue_free()
+	GameState.popup.emit("피로 -%d" % recovered, UiTheme.COLOR_GOOD)
+
+
 func _item_menu() -> void:
 	var ids: Array = []
 	var options: Array = []
@@ -781,7 +975,7 @@ func _item_menu() -> void:
 			ids.append(id)
 			options.append("%s x%d" % [ItemDB.item_name(id), GameState.item_count(id)])
 	if ids.is_empty():
-		await Dialogue.say("가방", ["가진 아이템이 없어요. (지갑 %s원)" % Korean.comma(GameState.money), "구내식당 자판기나 식권 발매기에서 살 수 있어요."])
+		await Dialogue.say("가방", ["가진 아이템이 없어요. (지갑 %s원)" % Korean.comma(GameState.money), "커피와 에너지바는 구내식당 자판기에서 살 수 있어요. 밥은 식권 발매기에서 골라 바로 먹어요."])
 		return
 	options.append("닫기")
 	var c: int = await Dialogue.choose("가방", "무엇을 사용할까요? (피로도 %d / 지갑 %s원)" % [GameState.fatigue, Korean.comma(GameState.money)], options)
@@ -829,4 +1023,6 @@ func _tip(key: String) -> void:
 	if GameState.has_flag(flag) or not POLICY_TIPS.has(key):
 		return
 	GameState.set_flag(flag)
-	await Dialogue.say(npc_name("narumi"), ["[조달 상식] " + str(POLICY_TIPS[key])])
+	var lines: Array = (POLICY_TIPS[key] as Array).duplicate()
+	lines[0] = "[조달 상식] " + str(lines[0])
+	await Dialogue.say(npc_name("narumi"), lines)

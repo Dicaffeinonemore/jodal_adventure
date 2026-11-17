@@ -29,8 +29,8 @@
 - 캐릭터 이동은 상하좌우 4방향만. 대각선 금지.
 - 정적 타이핑을 쓴다. `Dictionary` 값처럼 타입이 Variant인 식에는 `:=` 대신 `var x: int = ...`로 명시한다.
 - 플레이어에게 보이는 문장은 `scripts/systems/story.gd`와 `scripts/data/task_data.gd`에만 둔다. 말투는 해요체.
-- 조달 정책 설명(`POLICY_TIPS`, `GENERAL_TIPS`)은 사실이어야 한다. 새로 쓰거나 고칠 때는 공식 출처(조달청 누리집 등)를 확인하고, 확인 못 한 내용은 넣지 않는다.
-- 저작권: 제노니아는 분위기 참고만. 에셋·UI·폰트를 가져오지 않는다. 외부 에셋은 라이선스(CC0/OFL 등)를 확인하고 `docs/ai-usage-log.md`의 출처 표에 적는다.
+- 조달 정책 설명(`POLICY_TIPS`, `GENERAL_TIPS`, 나라장터 PC 문구)은 사실이어야 한다. 새로 쓰거나 고칠 때는 공식 출처(조달청 누리집 등)를 확인해 `docs/procurement-facts.md`에 적고, 확인 못 한 내용은 넣지 않는다.
+- 저작권: 제노니아와 참고 영상(초보자 던전 마스터 플레이 영상)은 분위기 참고만. 에셋·UI·폰트를 가져오지 않는다. 외부 에셋은 라이선스(CC0/OFL 등)를 확인하고 `docs/ai-usage-log.md`의 출처 표에 적는다.
 - AI로 만든 것(코드, 아트, 대사, 사운드)은 작업할 때마다 `docs/ai-usage-log.md`에 한 줄씩 기록한다. 신청서에 그대로 쓴다.
 
 ## 검증 명령
@@ -81,25 +81,29 @@ scripts/autoload/        전역 싱글톤 (project.godot의 순서대로 로드)
   input_setup.gd         입력 액션 등록
   ui_theme.gd            폰트·색·Theme, make_label(), edge_margin()
   game_state.gd          저장되는 모든 상태, 피로도/컨디션, 인벤토리, 저장/불러오기(user://save.json)
-  item_db.gd             아이템 정의와 효과 적용
+  item_db.gd             아이템·구내식당 메뉴(MEALS) 정의와 효과 적용
   scene_router.gd        페이드 장면 전환, next_spawn
-  dialogue.gd            대화창 say()/choose()/toast()
+  dialogue.gd            대화창 say()/choose()/toast() (크림색 말풍선), 전체 화면 창 플래그 set_overlay()
 scripts/systems/
-  story.gd (autoload)    코어 루프, NPC 대화, 상점, 메뉴, 인트로, 강제 퇴근
+  story.gd (autoload)    코어 루프, 수요기관(DESTINATIONS), NPC 대화, 자판기·구내식당, 메뉴, 인트로, 강제 퇴근
   korean.gd              조사(을/를, 이/가, 로/으로...), 천 단위 쉼표
   sprite_util.gd         스프라이트 시트 -> SpriteFrames
 scripts/data/task_data.gd  업무(조달 요청) 데이터, 검수 등급(요구 품질 기준), 시설 업그레이드
 scripts/world/
-  map_base.gd            맵 공통: ASCII 레이아웃 -> 타일, NPC·오브젝트·출구·플레이어·카메라·HUD·터치 UI 배치,
+  map_base.gd            맵 공통: ASCII 레이아웃 -> 타일, NPC·오브젝트·간판(signs)·출구·플레이어·카메라·HUD·터치 UI 배치,
                          목표 화살표(Story.objective_target), HUD를 피하는 카메라, 작은 방은 2배 확대
   tiles.gd               코드로 만드는 TileSet, ASCII 범례, 충돌 타일
   interactable.gd        조사 가능한 오브젝트 (나라장터 PC, 자판기, 납품 차량...)
   maps/home_map.gd       주인공 집 (18x8): 침대·옷장·냉장고, 현관 -> 청사
   maps/office_map.gd     정부청사 (40x24): 1층 현관 -> 집(퇴근)
-  maps/school_map.gd     한빛초등학교 (28x16)
+  maps/school_map.gd     수요기관: 한빛초등학교 (28x18)  ┐ 위쪽 건물 안, 외관 1줄(간판·유리문),
+  maps/fire_map.gd       수요기관: 한빛소방서 (28x14)    │ 아래쪽 앞마당(꽃 잔디·납품 차량 arrival),
+  maps/clinic_map.gd     수요기관: 한빛보건소 (28x14)    │ 맨 아래 출구 -> 청사 주차장
+  maps/center_map.gd     수요기관: 한빛동 행정복지센터 (28x14) ┘
 scripts/actors/          player.gd(4방향 이동·달리기·상호작용), npc.gd,
                          character_visual.gd(피부·옷 바탕·옷 색·얼굴·머리 5레이어, 색은 틴트)
-scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd
+scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd,
+                         procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과)
 scripts/minigames/drive_game.gd  운전(운송) 미니게임
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            갈무리 폰트 (OFL)
@@ -118,20 +122,25 @@ tools/, docs/            Godot이 무시함(.gdignore)
 ### 코어 루프 (story.gd의 `Step`)
 
 `NONE` -팀장 대화(업무 배정, 긴급 판정)-> `ACCEPTED` -나라장터 PC에서 업체 선택(특가 판정)-> `VENDOR_CHOSEN`
--주차장 차량-> 운전 미니게임 -> `ARRIVED`(학교 도착) -행정실 실장-> 검수 -> `DELIVERED`(추가 부탁 판정)
+-주차장 차량-> 운전 미니게임 -> `ARRIVED`(수요기관 앞마당 도착) -담당자(receiver)-> 검수 -> `DELIVERED`(추가 부탁 판정)
 -청사 복귀, 팀장 보고-> 보상(팀 예산 = 아낀 예산, 평판, 경험치, 성과급) -> `NONE`.
 검수 점수 = 업체 품질 × 화물 상태. 업무의 `required` 이상이면 보통, +15 이상이면 우수(`TaskData.grade`).
 팀 예산은 하단 바 [성장]에서 시설 업그레이드(`TaskData.UPGRADES`)에 쓴다.
+업체 선택은 `ProcurementPC`(모니터 창), 식사는 구내식당 식권 발매기 -> `MealWindow`(하루 `ItemDB.MEALS_PER_DAY`끼).
+두 창은 `Dialogue.set_overlay()`로 입력을 잠그고 터치 UI·하단 바를 숨긴다. 문구는 전부 Story가 넘긴다.
 
 ### 확장하는 법
 
 - 맵 추가: `MapBase`를 상속한 스크립트 + 루트만 있는 `.tscn`. `SceneRouter.MAPS`에 id 등록.
   레이아웃 문자열은 모든 행 길이가 같아야 한다. 범례는 `Tiles.LEGEND`.
-- 업무 추가: `TaskData.TASKS`에 항목 추가(`required`, `fragile` 포함). 업체 3곳은 "기준을 넘는 가장 싼 업체"가
-  업무마다 달라지게 값을 잡는다. 목적지가 새 맵이면 `Story.PLACE_NAMES`와 해당 맵의 수요기관 NPC 대화도 추가.
+- 수요기관 추가: 맵(위 방식, `signs()`·`parked_truck()`·arrival 스폰·맨 아래 출구) + `Story.DESTINATIONS`에
+  이름·담당자(receiver)·대사 + `Story.NPCS`·`tools/gen_placeholders.py`의 `human_npc`로 사람 추가.
+  담당자가 카운터 뒤면 `npcs()` 항목에 `reach`, 테스트용 `from`(말 거는 칸)을 준다.
+- 업무 추가: `TaskData.TASKS`에 항목 추가(`destination`, `required`, `fragile` 포함). 업체 3곳은 "기준을 넘는 가장 싼 업체"가
+  업무마다 달라지게 값을 잡는다.
 - 업그레이드 추가: `TaskData.UPGRADES` + 효과는 `GameState.upgrade_level(id)`를 읽는 곳(Story, 운전)에 넣는다.
 - NPC 추가: `Story.NPCS`에 이름·스프라이트·색, 맵의 `npcs()`에 위치, `Story.talk()`에 대화.
-- 아이템 추가: `ItemDB.ITEMS` + 아이콘, 판매처는 `Story.VENDING_ITEMS`/`TICKET_ITEMS`.
+- 아이템 추가: `ItemDB.ITEMS` + 아이콘, 판매처는 `Story.VENDING_ITEMS`. 식사 메뉴는 `ItemDB.MEALS` + 3프레임 음식 그림, 순서는 `Story.TICKET_MEALS`.
 - 외형 추가: 헤어·옷은 `tools/gen_placeholders.py`의 `HAIR_*`/`OUTFITS`에 그림을 추가하고
   `GameState.HAIR_STYLE_COUNT`/`OUTFIT_STYLE_COUNT`, `Story.LOOK_NAMES`를 맞춘다. 색은 `GameState`의 색 배열에 추가.
 - 진짜 아트로 교체: 같은 파일명·같은 프레임 배치(`tools/gen_placeholders.py` 상단 설명)로 덮어쓰면 된다.

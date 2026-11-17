@@ -1,8 +1,8 @@
 class_name TaskData
 ## Procurement tasks (the core loop content) and facility upgrades.
 ## The first task is always TASKS[0] (tutorial); after that a random task is
-## picked, never the same one twice in a row. All tasks deliver to the school map;
-## add a map id to SceneRouter.MAPS before using another "destination".
+## picked, never the same one twice in a row. "destination" is a key of
+## Story.DESTINATIONS (school, fire, clinic, center) with a map in SceneRouter.MAPS.
 ##
 ## Money: "budget" and vendor "price" are in 만원. The unspent budget goes to the
 ## team budget, which buys upgrades.
@@ -139,6 +139,117 @@ const TASKS := [
 			{"name": "그냥식판", "price": 140, "quality": 48, "desc": "가장 싸지만 마감이 거칠다."},
 		],
 		"exp": 40,
+	},
+	# ---- 한빛소방서
+	{
+		"id": "fire_suits",
+		"destination": "fire",
+		"item": "방화복 20벌",
+		"budget": 800,
+		"required": 70,
+		"fragile": false,
+		"brief": [
+			"한빛소방서에서 방화복 20벌을 요청했어요.",
+			"대원들 안전이 걸린 장비라 검수 기준이 품질 70점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "불꽃안전", "price": 780, "quality": 94, "desc": "소방 장비만 30년 만든 업체. 비싸다."},
+			{"name": "든든방호", "price": 640, "quality": 82, "desc": "납품 실적이 꾸준한 중소기업."},
+			{"name": "값싼장비", "price": 520, "quality": 58, "desc": "가장 싸지만 내열 시험 점수가 낮다."},
+		],
+		"exp": 55,
+	},
+	{
+		"id": "fire_breathing",
+		"destination": "fire",
+		"item": "공기호흡기 10세트",
+		"budget": 900,
+		"required": 75,
+		"fragile": true,
+		"brief": [
+			"소방서 공기호흡기 10세트 요청이에요. 기준이 75점으로 높아요.",
+			"정밀 장비라 파손 주의예요. 중간 업체를 고르면 운전을 아주 잘해야 해요.",
+		],
+		"vendors": [
+			{"name": "숨결테크", "price": 880, "quality": 97, "desc": "해외 인증까지 받은 업체. 아주 비싸다."},
+			{"name": "안심호흡", "price": 720, "quality": 88, "desc": "국내 소방서 납품 경험이 많은 업체."},
+			{"name": "대충산소", "price": 560, "quality": 64, "desc": "싸지만 밸브 불량 신고가 있다."},
+		],
+		"exp": 65,
+	},
+	# ---- 한빛보건소
+	{
+		"id": "clinic_wheelchairs",
+		"destination": "clinic",
+		"item": "휠체어 15대",
+		"budget": 450,
+		"required": 60,
+		"fragile": false,
+		"brief": [
+			"한빛보건소에서 휠체어 15대를 요청했어요.",
+			"어르신들이 타실 거라 품질 60점 이상이어야 해요.",
+		],
+		"vendors": [
+			{"name": "편안모빌", "price": 440, "quality": 92, "desc": "병원 납품을 주로 하는 업체. 비싸다."},
+			{"name": "바퀴나라", "price": 350, "quality": 76, "desc": "가볍고 튼튼하다는 평이 많은 중소기업."},
+			{"name": "삐걱휠", "price": 260, "quality": 50, "desc": "가장 싸지만 바퀴가 자주 빠진다는 소문."},
+		],
+		"exp": 45,
+	},
+	{
+		"id": "clinic_thermometers",
+		"destination": "clinic",
+		"item": "전자 체온계 100개",
+		"budget": 200,
+		"required": 70,
+		"fragile": true,
+		"brief": [
+			"보건소 전자 체온계 100개 요청이에요. 기준은 품질 70점 이상.",
+			"작은 전자기기라 파손 주의예요!",
+		],
+		"vendors": [
+			{"name": "정확메디", "price": 190, "quality": 95, "desc": "의료기기 인증을 받은 업체."},
+			{"name": "온도쟁이", "price": 150, "quality": 85, "desc": "가성비 좋은 신생 기업 제품."},
+			{"name": "깜빡체온", "price": 100, "quality": 60, "desc": "싸지만 측정값이 들쭉날쭉하다."},
+		],
+		"exp": 45,
+	},
+	# ---- 한빛동 행정복지센터
+	{
+		"id": "center_chairs",
+		"destination": "center",
+		"item": "민원실 대기 의자 40개",
+		"budget": 300,
+		"required": 45,
+		"fragile": false,
+		"brief": [
+			"한빛동 행정복지센터에서 민원실 대기 의자 40개를 요청했어요.",
+			"기준은 품질 45점으로 낮은 편이에요. 예산을 아낄 기회죠!",
+		],
+		"vendors": [
+			{"name": "푹신가구", "price": 290, "quality": 88, "desc": "호텔 로비 의자도 만드는 업체."},
+			{"name": "앉아봐", "price": 220, "quality": 70, "desc": "관공서 납품 경험이 많은 업체."},
+			{"name": "딱딱의자", "price": 150, "quality": 52, "desc": "단순하지만 쓸 만하다는 평."},
+		],
+		"exp": 40,
+	},
+	{
+		"id": "center_generators",
+		"destination": "center",
+		"item": "비상 발전기 2대",
+		"budget": 600,
+		"required": 65,
+		"fragile": true,
+		"brief": [
+			"행정복지센터에서 정전에 대비할 비상 발전기 2대를 요청했어요.",
+			"기계 장비라 파손 주의, 기준은 품질 65점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "튼튼파워", "price": 590, "quality": 93, "desc": "공장용 발전기도 만드는 업체. 비싸다."},
+			{"name": "동네전기", "price": 470, "quality": 81, "desc": "A/S가 빠른 지역 중소기업."},
+			{"name": "반짝발전", "price": 360, "quality": 58, "desc": "싸지만 소음과 고장이 잦다는 평."},
+		],
+		"exp": 50,
 	},
 ]
 

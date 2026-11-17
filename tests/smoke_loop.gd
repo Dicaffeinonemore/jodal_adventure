@@ -13,7 +13,8 @@ const TIMEOUT_FRAMES := 60 * 120
 const LEADER := Vector2i(13, 4)
 const PC := Vector2i(13, 7)
 const CAR := Vector2i(31, 20)
-const OFFICER := Vector2i(6, 5)
+const TICKET := Vector2i(36, 3)  # below the cafeteria ticket machine
+const PLACES := ["school", "fire", "clinic", "center"]
 
 var _failed := false
 var _step := ""
@@ -126,6 +127,34 @@ func _run() -> void:
 			await _drain_dialogue()
 			_check(int(gs.get("tasks_completed")) == done + 1, "pending report failed on day 2")
 
+	for place: String in PLACES:
+		if _failed:
+			break
+		_step = "visit " + place
+		await _visit(place)
+
+	if not _failed:
+		_step = "cafeteria"
+		gs.set("fatigue", 60)
+		gs.set("meals_today", 0)
+		var money := int(gs.get("money"))
+		await _walk_and_interact(TICKET, "up")
+		await _drain_dialogue([0])  # 든든 국밥
+		var dlg := _a("Dialogue")
+		await _until(func() -> bool: return bool(dlg.get("overlay_open")), "meal window never opened")
+		await _shot("12_meal_eating", 70)
+		_press("interact")  # skip to the result
+		await _shot("13_meal_result", 20)
+		_press("interact")  # close
+		await _until(func() -> bool: return not bool(dlg.get("overlay_open")), "meal window did not close")
+		_check(int(gs.get("fatigue")) == 20, "meal did not recover 40 fatigue: %d" % int(gs.get("fatigue")))
+		_check(int(gs.get("money")) == money - 8000, "meal not paid")
+		_check(int(gs.get("meals_today")) == 1, "meal not counted")
+		gs.set("meals_today", 2)
+		await _walk_and_interact(TICKET, "up")
+		await _drain_dialogue()
+		_check(int(gs.get("money")) == money - 8000 and not bool(dlg.get("overlay_open")), "meal limit not applied")
+
 	if not _failed:
 		_step = "growth"
 		gs.set("budget", 1000)
@@ -138,6 +167,7 @@ func _run() -> void:
 	if not _failed:
 		_step = "menu + items"
 		gs.call("add_item", "gukbap")
+		gs.set("fatigue", 0)
 		gs.call("add_fatigue", 50)
 		_press("cancel")
 		await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "menu did not open")
@@ -171,13 +201,25 @@ func _one_task(i: int) -> void:
 
 	_step = "task %d: pc" % (i + 1)
 	await _walk_and_interact(PC, "up")
-	if i == 0:
-		for k in 4:
+	var dlg := _a("Dialogue")
+	for k in 600:  # a sale notice may come before the monitor window
+		if bool(dlg.get("overlay_open")):
+			break
+		if dlg.get("is_open"):
 			_press("interact")
-			await _frames(20)
-		await _shot("04_pc_vendor", 60)
-	await _drain_dialogue()  # option 0 = first vendor
+		await _frames(3)
+	_check(bool(dlg.get("overlay_open")), "나라장터 window never opened")
+	if i == 0:
+		await _shot("04_pc_vendor", 30)
+	_press("interact")  # 계약하기 -> confirm popup (first vendor)
+	await _frames(5)
+	if i == 0:
+		await _shot("04b_pc_confirm", 10)
+	_press("interact")  # confirm
+	await _until(func() -> bool: return not bool(dlg.get("overlay_open")), "나라장터 window did not close")
+	await _drain_dialogue()
 	_check(int(story.call("step")) == 2, "vendor not chosen")
+	_check(int((gs.get("task") as Dictionary)["vendor"]) == 0, "PC picked the wrong vendor")
 
 	_step = "task %d: car" % (i + 1)
 	await _walk_and_interact(CAR, "up")
@@ -196,10 +238,10 @@ func _one_task(i: int) -> void:
 		i + 1, int(t["index"]), str(t.get("urgent", false)), int(t.get("discount", -1)), int(t["cargo"]),
 		int(t.get("stars", 0)), int(gs.get("fatigue"))])
 
-	_step = "task %d: inspection" % (i + 1)
+	_step = "task %d: inspection at %s" % [i + 1, _map()]
 	if i == 0:
 		await _shot("06_school", 10)
-	await _walk_and_interact(OFFICER, "up")
+	await _walk_and_interact(_receiver_spot(), "up")
 	if i == 0:
 		for k in 5:
 			_press("interact")
@@ -209,7 +251,7 @@ func _one_task(i: int) -> void:
 	_check(int(story.call("step")) == 4, "not DELIVERED after inspection")
 
 	_step = "task %d: return" % (i + 1)
-	await _walk_out(Vector2i(13, 14))
+	await _walk_out(_exit_spot())
 	await _frames(5)
 	if _a("Dialogue").get("is_open") or bool(gs.get("day_over")):
 		# forced leave: Narumi talks, then the evening summary at home
@@ -324,7 +366,54 @@ func _walk_and_interact(cell: Vector2i, facing: String) -> void:
 		_fail("nothing to interact with at %s facing %s" % [cell, facing])
 		return
 	_press("interact")
-	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "interaction opened no dialogue", 60)
+	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true or _a("Dialogue").get("overlay_open") == true,
+			"interaction opened no dialogue", 60)
+
+
+## Where to stand to talk to this map's receiver (MapBase.npcs() "from", else the cell below).
+func _receiver_spot() -> Vector2i:
+	var dests: Dictionary = _a("Story").get("DESTINATIONS")
+	var receiver := str((dests[_map()] as Dictionary)["receiver"])
+	for entry: Dictionary in current_scene.call("npcs"):
+		if str(entry["id"]) == receiver:
+			return entry.get("from", (entry["cell"] as Vector2i) + Vector2i(0, 1))
+	_fail("receiver %s not on map %s" % [receiver, _map()])
+	return Vector2i.ZERO
+
+
+## The cell just above this map's first exit (walk down from it to leave).
+func _exit_spot() -> Vector2i:
+	var r: Rect2i = (current_scene.call("exits") as Array)[0]["rect"]
+	return Vector2i(r.position.x, r.position.y - 1)
+
+
+## Jumps straight to a destination with a task in ARRIVED state, delivers, returns, reports.
+func _visit(place: String) -> void:
+	var gs := _a("GameState")
+	var index := -1
+	for k in TaskData.TASKS.size():
+		if str((TaskData.TASKS[k] as Dictionary)["destination"]) == place:
+			index = k
+			break
+	_check(index >= 0, "no task for %s" % place)
+	gs.call("recover_fatigue", 100)  # keep a forced leave out of this check
+	gs.call("set_task", {"index": index, "step": 3, "vendor": 1, "cargo": 95, "grade": "", "urgent": false,
+			"discount": -1, "discount_rolled": true, "stars": 0})
+	_a("SceneRouter").call("goto_map", place, "arrival")
+	await _wait_router()
+	_check(_map() == place, "could not open map %s" % place)
+	await _drain_dialogue()
+	await _shot("11_place_" + place, 20)
+	await _walk_and_interact(_receiver_spot(), "up")
+	await _drain_dialogue()
+	_check(int(_a("Story").call("step")) == 4, "delivery at %s failed" % place)
+	await _walk_out(_exit_spot())
+	await _drain_dialogue()
+	_check(_map() == "office", "%s exit did not lead to the office" % place)
+	var done := int(gs.get("tasks_completed"))
+	await _walk_and_interact(LEADER, "up")
+	await _drain_dialogue()
+	_check(int(gs.get("tasks_completed")) == done + 1, "report after %s failed" % place)
 
 
 ## Stands on `cell` and walks down into the exit below it. expect_change=false

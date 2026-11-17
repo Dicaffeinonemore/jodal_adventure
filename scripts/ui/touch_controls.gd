@@ -7,7 +7,8 @@ extends CanvasLayer
 ##
 ## Shown on touch devices only. Press F2 on PC to toggle them for testing
 ## (mouse clicks are emulated as touches, see project.godot).
-## Hidden while a dialogue is open: tap the dialogue box to advance instead.
+## Hidden while a dialogue is open (tap the dialogue box to advance instead) and
+## while a full-screen window (PC, meal) is open: those have their own buttons.
 
 const TEX_DIR := "res://assets/sprites/placeholder/"
 const JOY_RADIUS := 28.0
@@ -43,6 +44,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_layout)
 	Dialogue.opened.connect(_refresh_visibility)
 	Dialogue.closed.connect(_refresh_visibility)
+	Dialogue.overlay_changed.connect(_refresh_visibility.unbind(1))
 	GameState.inventory_changed.connect(_refresh_item_icon)
 	_layout()
 	_refresh_item_icon()
@@ -69,7 +71,7 @@ func _layout() -> void:
 
 
 func _refresh_visibility() -> void:
-	_active = GameState.is_touch_device() and not Dialogue.is_open
+	_active = GameState.is_touch_device() and not Dialogue.is_open and not Dialogue.overlay_open
 	visible = _active
 	if not _active:
 		_release_joystick()

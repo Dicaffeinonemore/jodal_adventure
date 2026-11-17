@@ -7,13 +7,19 @@ const CHARACTER_CREATE := "res://scenes/character_create/character_create.tscn"
 const HOME := "res://scenes/maps/home.tscn"
 const OFFICE := "res://scenes/maps/office.tscn"
 const SCHOOL := "res://scenes/maps/school.tscn"
+const FIRE := "res://scenes/maps/fire.tscn"
+const CLINIC := "res://scenes/maps/clinic.tscn"
+const CENTER := "res://scenes/maps/center.tscn"
 const DRIVE := "res://scenes/minigames/drive.tscn"
 
-## Map id (used in task data) -> scene path.
+## Map id (used in task data and Story.DESTINATIONS) -> scene path.
 const MAPS := {
 	"home": HOME,
 	"office": OFFICE,
 	"school": SCHOOL,
+	"fire": FIRE,
+	"clinic": CLINIC,
+	"center": CENTER,
 }
 
 var next_spawn := ""

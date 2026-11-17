@@ -37,7 +37,15 @@ func spawns() -> Dictionary:
 
 
 ## [{"id": "narumi", "cell": Vector2i(3, 4)}, ...]
+## Optional per entry: "reach" (interact radius, for staff behind a counter) and
+## "from" (cell the player talks from; used by tests/smoke_loop.gd).
 func npcs() -> Array:
+	return []
+
+
+## Building name boards on the facade: [{"text": "한빛소방서", "cell": Vector2i(7, 8)}].
+## The board is centered on the cell. Put it beside the door, not over it.
+func signs() -> Array:
 	return []
 
 
@@ -67,6 +75,8 @@ func _ready() -> void:
 	ground.tile_set = Tiles.get_tileset()
 	add_child(ground)
 	_paint()
+	for entry: Dictionary in signs():
+		_add_sign(str(entry["text"]), entry["cell"])
 
 	entities = Node2D.new()
 	entities.name = "Entities"
@@ -76,6 +86,8 @@ func _ready() -> void:
 	for entry: Dictionary in npcs():
 		var npc := Npc.new().setup(str(entry["id"]))
 		npc.position = Tiles.cell_center(entry["cell"])
+		if entry.has("reach"):
+			npc.interact_radius = float(entry["reach"])
 		entities.add_child(npc)
 
 	for entry: Dictionary in objects():
@@ -138,6 +150,27 @@ func _paint() -> void:
 	map_size_px = Vector2(width * Tiles.TILE, rows.size() * Tiles.TILE)
 
 
+## Wooden name board with cream lettering and a dark outline.
+func _add_sign(text: String, cell: Vector2i) -> void:
+	var board := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("8a5a36")
+	sb.border_color = Color("261e2c")
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(2)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 4
+	sb.content_margin_top = 0
+	sb.content_margin_bottom = 0
+	board.add_theme_stylebox_override("panel", sb)
+	board.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := UiTheme.make_label(text, UiTheme.SIZE, Color("fbf3dc"), true)
+	board.add_child(l)
+	add_child(board)
+	board.reset_size()
+	board.position = (Tiles.cell_center(cell) - board.size / 2.0).round()
+
+
 func _add_exit(entry: Dictionary) -> void:
 	var r: Rect2i = entry["rect"]
 	var area := Area2D.new()
@@ -171,7 +204,7 @@ func _update_marker(delta: float) -> void:
 	var target := Story.objective_target()
 	var pos := _target_position(target)
 	var cam := get_node_or_null("Camera") as Camera2D
-	if target == "" or pos == Vector2.INF or Dialogue.is_open or cam == null:
+	if target == "" or pos == Vector2.INF or Dialogue.is_open or Dialogue.overlay_open or cam == null:
 		_marker.hide()
 		return
 	_marker_t += delta

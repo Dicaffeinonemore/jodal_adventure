@@ -126,6 +126,7 @@ func _ready() -> void:
 	GameState.popup.connect(_on_popup)
 	Dialogue.opened.connect(_refresh_bar)
 	Dialogue.closed.connect(_refresh_bar)
+	Dialogue.overlay_changed.connect(_refresh_bar.unbind(1))
 	_refresh()
 	_refresh_bar()
 
@@ -142,7 +143,7 @@ func menu_bar_rect() -> Rect2:
 
 
 func _refresh_bar() -> void:
-	_bar.visible = not Dialogue.is_open
+	_bar.visible = not Dialogue.is_open and not Dialogue.overlay_open
 
 
 func _on_bar_pressed(panel: String) -> void:

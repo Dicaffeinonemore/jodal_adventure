@@ -61,6 +61,7 @@ var rank := 0
 var fatigue := 0
 var coffee_today := 0
 var meal_bonus_today := false
+var meals_today := 0  # cafeteria meals eaten today (ItemDB.MEALS_PER_DAY)
 var inventory: Dictionary = {}  # item_id -> count
 var flags: Dictionary = {}  # story flags, e.g. "intro_done"
 var task: Dictionary = {}  # current task; shape documented in Story
@@ -100,6 +101,7 @@ func new_game(p_name: String, p_look: Dictionary) -> void:
 	fatigue = 0
 	coffee_today = 0
 	meal_bonus_today = false
+	meals_today = 0
 	inventory = {"coffee": 1}
 	flags = {}
 	task = {}
@@ -272,6 +274,7 @@ func end_day() -> void:
 	fatigue = 0
 	coffee_today = 0
 	meal_bonus_today = false
+	meals_today = 0
 	money += daily_pay()
 	minutes = WAKE_MINUTES
 	day_over = false
@@ -366,6 +369,7 @@ func save_game() -> void:
 		"fatigue": fatigue,
 		"coffee_today": coffee_today,
 		"meal_bonus_today": meal_bonus_today,
+		"meals_today": meals_today,
 		"inventory": inventory,
 		"flags": flags,
 		"task": task,
@@ -415,6 +419,7 @@ func load_game() -> bool:
 	fatigue = int(d.get("fatigue", 0))
 	coffee_today = int(d.get("coffee_today", 0))
 	meal_bonus_today = bool(d.get("meal_bonus_today", false))
+	meals_today = int(d.get("meals_today", 0))
 	inventory = _int_values(d.get("inventory", {}))
 	flags = d.get("flags", {})
 	task = _normalize_task(d.get("task", {}))

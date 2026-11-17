@@ -5,23 +5,33 @@ extends CanvasLayer
 ##     var i: int = await Dialogue.choose("김 팀장", "어떻게 할까?", ["예", "아니요"])
 ##     Dialogue.toast("피로도 -15")
 ## Advance with the interact action (Space/Enter/Z, touch A) or by tapping the box.
+## Look: a cream speech bubble with a dark outline and a dark name tag.
+##
+## Full-screen windows (나라장터 PC, cafeteria meal) call set_overlay(true/false) so
+## touch controls, the HUD menu bar and the objective arrow step aside.
 
 signal opened
 signal closed
 signal _advanced
 signal _chosen(index: int)
 signal _typed
+signal overlay_changed(open: bool)
 
 const CHARS_PER_SEC := 45.0
 const DEFAULT_NAME_COLOR := Color("e8d9a8")
+const BUBBLE := Color("fbf3dc")
+const BUBBLE_TEXT := Color("2e2636")
+const INK := Color("261e2c")
 
 ## Set by Story so speakers get their own name color.
 var name_colors: Dictionary = {}
 var is_open := false
+var overlay_open := false
 
 var _root: Control
 var _panel: PanelContainer
 var _name_label: Label
+var _name_tag: PanelContainer
 var _text: Label
 var _hint: Label
 var _choices: VBoxContainer
@@ -54,19 +64,44 @@ func _ready() -> void:
 	_panel.offset_bottom = -8
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.gui_input.connect(_on_panel_input)
+	var bubble := StyleBoxFlat.new()
+	bubble.bg_color = BUBBLE
+	bubble.border_color = INK
+	bubble.set_border_width_all(2)
+	bubble.set_corner_radius_all(6)
+	bubble.content_margin_left = 10
+	bubble.content_margin_right = 10
+	bubble.content_margin_top = 4
+	bubble.content_margin_bottom = 4
+	bubble.shadow_color = Color(0, 0, 0, 0.25)
+	bubble.shadow_offset = Vector2(0, 2)
+	bubble.shadow_size = 1
+	_panel.add_theme_stylebox_override("panel", bubble)
 	_root.add_child(_panel)
 
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 4)
+	vb.add_theme_constant_override("separation", 2)
 	_panel.add_child(vb)
+	_name_tag = PanelContainer.new()
+	_name_tag.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var tag := StyleBoxFlat.new()
+	tag.bg_color = INK
+	tag.set_corner_radius_all(3)
+	tag.content_margin_left = 5
+	tag.content_margin_right = 5
+	tag.content_margin_top = 0
+	tag.content_margin_bottom = 1
+	_name_tag.add_theme_stylebox_override("panel", tag)
+	_name_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(_name_tag)
 	_name_label = UiTheme.make_label("", UiTheme.SIZE, DEFAULT_NAME_COLOR, true)
-	vb.add_child(_name_label)
-	_text = UiTheme.make_label("")
+	_name_tag.add_child(_name_label)
+	_text = UiTheme.make_label("", UiTheme.SIZE, BUBBLE_TEXT)
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vb.add_child(_text)
 
-	_hint = UiTheme.make_label("▼", UiTheme.SIZE_SMALL, UiTheme.COLOR_BORDER)
+	_hint = UiTheme.make_label("▼", UiTheme.SIZE_SMALL, INK)
 	_hint.anchor_left = 1.0
 	_hint.anchor_right = 1.0
 	_hint.anchor_top = 1.0
@@ -150,6 +185,18 @@ func choose(speaker: String, prompt: String, options: Array) -> int:
 	return index
 
 
+## Full-screen windows report themselves here (see the header).
+func set_overlay(open: bool) -> void:
+	if overlay_open == open:
+		return
+	overlay_open = open
+	if open:
+		GameState.lock_input()
+	else:
+		GameState.unlock_input()
+	overlay_changed.emit(open)
+
+
 ## Short non-blocking message at the top of the screen.
 func toast(text: String, color: Color = Color("f4f1e8")) -> void:
 	var p := PanelContainer.new()
@@ -187,7 +234,7 @@ func _close() -> void:
 
 func _set_speaker(speaker: String) -> void:
 	_name_label.text = speaker
-	_name_label.visible = speaker != ""
+	_name_tag.visible = speaker != ""
 	var c: Color = name_colors.get(speaker, DEFAULT_NAME_COLOR)
 	_name_label.add_theme_color_override("font_color", c)
 
