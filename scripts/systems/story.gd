@@ -37,6 +37,16 @@ const NPCS := {
 	"vendor": {"name": "최 사장", "sprite": "npc_vendor.png", "color": Color("f2d38a")},
 	"cafeteria": {"name": "식당 이모", "sprite": "npc_cafeteria.png", "color": Color("ffb3a0")},
 }
+## 출입증·옷장 화면의 선택지 이름 (GameState.LOOK_KEYS). 색 항목은 이름 대신 색 견본을 보여 준다.
+const LOOK_LABELS := {
+	"gender": "성별", "skin": "피부색", "hair_style": "헤어", "hair_color": "머리색",
+	"outfit_style": "옷", "outfit_color": "옷 색",
+}
+const LOOK_NAMES := {
+	"gender": ["남자", "여자"],
+	"hair_style": ["짧은 머리", "가르마", "단발", "긴 머리", "포니테일"],
+	"outfit_style": ["정장", "치마 정장", "니트 조끼", "활동복"],
+}
 const SPRITE_DIR := "res://assets/sprites/placeholder/"
 
 const PLACE_NAMES := {"school": "한빛초등학교", "office": "정부청사", "home": "우리 집"}
@@ -385,9 +395,9 @@ func play_home_intro() -> void:
 		"오늘은 조달청 첫 출근 날! %s 씨, 일어날 시간이에요." % GameState.player_name,
 	])
 	if GameState.is_touch_device():
-		await Dialogue.say("", ["[조작] 이동: 화면 왼쪽을 누르고 끌기", "말 걸기·조사: A 버튼 / 메뉴: B 버튼 / 노란 버튼: 아이템", "아래쪽 메뉴 바에서 업무·가방·성장을 볼 수 있어요."])
+		await Dialogue.say("", ["[조작] 이동: 화면 왼쪽을 누르고 끌기 (끝까지 밀면 달리기)", "말 걸기·조사: A 버튼 / 메뉴: B 버튼 / 노란 버튼: 아이템", "아래쪽 메뉴 바에서 업무·가방·성장을 볼 수 있어요."])
 	else:
-		await Dialogue.say("", ["[조작] 이동: 방향키 또는 WASD", "말 걸기·조사: Space·Enter / 메뉴: Esc / 아이템: Q", "아래쪽 메뉴 바를 눌러 업무·가방·성장을 볼 수도 있어요."])
+		await Dialogue.say("", ["[조작] 이동: 방향키 또는 WASD / 달리기: Shift를 누른 채 이동", "말 걸기·조사: Space·Enter / 메뉴: Esc / 아이템: Q", "아래쪽 메뉴 바를 눌러 업무·가방·성장을 볼 수도 있어요."])
 	await Dialogue.say("", ["냉장고와 옷장도 조사할 수 있어요. 준비가 되면 현관문으로 나가 출근해요!"])
 	GameState.set_flag("home_intro")
 	GameState.task_changed.emit()

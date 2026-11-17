@@ -25,7 +25,7 @@
 - 기준 해상도 640×360, stretch `viewport` + aspect `expand`. 픽셀아트는 Nearest 필터, 정수 배율.
 - 한글은 반드시 번들 폰트(갈무리, `UiTheme`)로 표시한다. 웹에는 시스템 폰트가 없어서 기본 폰트로는 한글이 네모로 깨진다.
   Galmuri11은 12px 기준(12, 24), Galmuri9는 10px.
-- 입력은 **액션만** 읽는다(`move_*`, `interact`, `cancel`, `quick_item`). 액션은 `scripts/autoload/input_setup.gd`에서 코드로 등록한다. 터치 UI는 같은 액션을 누른다.
+- 입력은 **액션만** 읽는다(`move_*`, `interact`, `cancel`, `quick_item`, `run`). 액션은 `scripts/autoload/input_setup.gd`에서 코드로 등록한다. 터치 UI는 같은 액션을 누른다.
 - 캐릭터 이동은 상하좌우 4방향만. 대각선 금지.
 - 정적 타이핑을 쓴다. `Dictionary` 값처럼 타입이 Variant인 식에는 `:=` 대신 `var x: int = ...`로 명시한다.
 - 플레이어에게 보이는 문장은 `scripts/systems/story.gd`와 `scripts/data/task_data.gd`에만 둔다. 말투는 해요체.
@@ -97,7 +97,8 @@ scripts/world/
   maps/home_map.gd       주인공 집 (18x8): 침대·옷장·냉장고, 현관 -> 청사
   maps/office_map.gd     정부청사 (40x24): 1층 현관 -> 집(퇴근)
   maps/school_map.gd     한빛초등학교 (28x16)
-scripts/actors/          player.gd(4방향 이동·상호작용), npc.gd, character_visual.gd(레이어+틴트)
+scripts/actors/          player.gd(4방향 이동·달리기·상호작용), npc.gd,
+                         character_visual.gd(피부·옷 바탕·옷 색·얼굴·머리 5레이어, 색은 틴트)
 scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd
 scripts/minigames/drive_game.gd  운전(운송) 미니게임
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
@@ -131,6 +132,8 @@ tools/, docs/            Godot이 무시함(.gdignore)
 - 업그레이드 추가: `TaskData.UPGRADES` + 효과는 `GameState.upgrade_level(id)`를 읽는 곳(Story, 운전)에 넣는다.
 - NPC 추가: `Story.NPCS`에 이름·스프라이트·색, 맵의 `npcs()`에 위치, `Story.talk()`에 대화.
 - 아이템 추가: `ItemDB.ITEMS` + 아이콘, 판매처는 `Story.VENDING_ITEMS`/`TICKET_ITEMS`.
+- 외형 추가: 헤어·옷은 `tools/gen_placeholders.py`의 `HAIR_*`/`OUTFITS`에 그림을 추가하고
+  `GameState.HAIR_STYLE_COUNT`/`OUTFIT_STYLE_COUNT`, `Story.LOOK_NAMES`를 맞춘다. 색은 `GameState`의 색 배열에 추가.
 - 진짜 아트로 교체: 같은 파일명·같은 프레임 배치(`tools/gen_placeholders.py` 상단 설명)로 덮어쓰면 된다.
   타일은 `TILES` 순서 = `Tiles` enum 순서(뒤에만 추가). `python tools/gen_placeholders.py <png>`는 미리보기 시트도 만든다.
   에디터에서 타일을 칠하고 싶으면 맵 씬에 TileMapLayer를 추가하고 `layout()`을 비우는 방향으로 바꾼다.

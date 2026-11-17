@@ -1,7 +1,7 @@
 class_name TouchControls
 extends CanvasLayer
 ## Mobile controls: a floating 4-direction joystick on the left half of the
-## screen and A (interact) / B (menu) / item buttons on the right.
+## screen (push it all the way to run) and A (interact) / B (menu) / item buttons on the right.
 ## They press the same input actions as the keyboard (see InputSetup), so the
 ## rest of the game never checks for touch.
 ##
@@ -13,6 +13,7 @@ const TEX_DIR := "res://assets/sprites/placeholder/"
 const JOY_RADIUS := 28.0
 const JOY_DEADZONE := 8.0
 const JOY_ZONE_WIDTH := 0.45  # left part of the screen that starts the joystick
+const JOY_RUN := 0.9  # pushing the knob this far out (of JOY_RADIUS) presses "run"
 
 var _joy_base: Sprite2D
 var _joy_knob: Sprite2D
@@ -20,6 +21,7 @@ var _joy_rest := Vector2.ZERO
 var _joy_center := Vector2.ZERO
 var _joy_touch := -1
 var _joy_dir := Vector2.ZERO
+var _joy_run := false
 var _btn_a: TouchScreenButton
 var _btn_b: TouchScreenButton
 var _btn_item: TouchScreenButton
@@ -49,6 +51,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_set_dir(Vector2.ZERO)
+	_set_run(false)
 
 
 func _layout() -> void:
@@ -116,6 +119,7 @@ func _update_joystick(pos: Vector2) -> void:
 		else:
 			dir = Vector2(0, signf(v.y))
 	_set_dir(dir)
+	_set_run(dir != Vector2.ZERO and v.length() >= JOY_RADIUS * JOY_RUN)
 
 
 func _release_joystick() -> void:
@@ -125,6 +129,14 @@ func _release_joystick() -> void:
 		_joy_base.position = _joy_rest
 		_joy_knob.position = _joy_rest
 	_set_dir(Vector2.ZERO)
+	_set_run(false)
+
+
+func _set_run(on: bool) -> void:
+	if on == _joy_run:
+		return
+	_joy_run = on
+	_toggle("run", on)
 
 
 ## Presses exactly one move action (or none), so movement stays 4-directional.

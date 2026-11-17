@@ -15,7 +15,7 @@ signal popup(text: String, color: Color)
 enum Condition { GOOD, NORMAL, BAD }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 
 # --- balancing (initial values; tune during the 11/21 playtest) ---
 const FATIGUE_MAX := 100
@@ -33,12 +33,21 @@ const RANK_EXP: Array[int] = [0, 100, 300, 700]
 
 const HAIR_COLORS: Array[Color] = [Color("3a2f2f"), Color("8a5a3a"), Color("e0b060"), Color("6b7bd0")]
 const OUTFIT_COLORS: Array[Color] = [Color("3c4d8c"), Color("4a4a52"), Color("c98a6a"), Color("f0f0f0")]
-const HAIR_STYLE_COUNT := 2
+const SKIN_TONES: Array[Color] = [Color("ffe2c8"), Color("f4c8a0"), Color("d6a074"), Color("96644a")]
+const HAIR_STYLE_COUNT := 5  # player_hair_<n>.png; names in Story.LOOK_NAMES
+const OUTFIT_STYLE_COUNT := 4  # player_outfit_<n>.png
+const GENDER_COUNT := 2  # 0 male, 1 female (player_face_<n>.png)
+## Picking a gender in the character screen also picks these (hair_style, outfit_style).
+const GENDER_DEFAULTS := [[0, 0], [3, 1]]
+const LOOK_KEYS: Array[String] = ["gender", "skin", "hair_style", "hair_color", "outfit_style", "outfit_color"]
 
 # --- saved state ---
 var player_name := "신입"
+var gender := 0
+var skin := 0
 var hair_style := 0
 var hair_color := 0
+var outfit_style := 0
 var outfit_color := 0
 
 var day := 1
@@ -77,11 +86,9 @@ func _ready() -> void:
 
 
 # ---------------------------------------------------------------- new game
-func new_game(p_name: String, p_hair_style: int, p_hair_color: int, p_outfit_color: int) -> void:
+func new_game(p_name: String, p_look: Dictionary) -> void:
 	player_name = p_name
-	hair_style = p_hair_style
-	hair_color = p_hair_color
-	outfit_color = p_outfit_color
+	set_look(p_look)
 	day = 1
 	tasks_done_today = 0
 	tasks_completed = 0
@@ -309,15 +316,45 @@ func is_touch_device() -> bool:
 	return DisplayServer.is_touchscreen_available() and not OS.has_feature("pc")
 
 
+# ---------------------------------------------------------------- look
+## {gender, skin, hair_style, hair_color, outfit_style, outfit_color} -> int
+func get_look() -> Dictionary:
+	var d := {}
+	for key in LOOK_KEYS:
+		d[key] = int(get(key))
+	return d
+
+
+func set_look(d: Dictionary) -> void:
+	for key in LOOK_KEYS:
+		var v: int = int(d.get(key, 0))
+		set(key, posmod(v, look_option_count(key)))
+
+
+func look_option_count(key: String) -> int:
+	match key:
+		"gender":
+			return GENDER_COUNT
+		"skin":
+			return SKIN_TONES.size()
+		"hair_style":
+			return HAIR_STYLE_COUNT
+		"hair_color":
+			return HAIR_COLORS.size()
+		"outfit_style":
+			return OUTFIT_STYLE_COUNT
+		"outfit_color":
+			return OUTFIT_COLORS.size()
+	return 1
+
+
 # ---------------------------------------------------------------- save / load
 ## On the web, user:// is stored in the browser (IndexedDB) and survives reloads.
 func save_game() -> void:
 	var data := {
 		"version": SAVE_VERSION,
 		"player_name": player_name,
-		"hair_style": hair_style,
-		"hair_color": hair_color,
-		"outfit_color": outfit_color,
+		"look": get_look(),
 		"day": day,
 		"tasks_done_today": tasks_done_today,
 		"tasks_completed": tasks_completed,
@@ -361,9 +398,12 @@ func load_game() -> bool:
 		return false
 	var d: Dictionary = parsed
 	player_name = str(d.get("player_name", "신입"))
-	hair_style = int(d.get("hair_style", 0))
-	hair_color = int(d.get("hair_color", 0))
-	outfit_color = int(d.get("outfit_color", 0))
+	if d.get("look") is Dictionary:
+		set_look(d["look"])
+	else:  # version 2: two hair styles, the second one (long) is now index 3
+		var old_hair: int = int(d.get("hair_style", 0))
+		set_look({"hair_style": 3 if old_hair == 1 else 0, "hair_color": d.get("hair_color", 0),
+				"outfit_color": d.get("outfit_color", 0)})
 	day = int(d.get("day", 1))
 	tasks_done_today = int(d.get("tasks_done_today", 0))
 	tasks_completed = int(d.get("tasks_completed", 0))

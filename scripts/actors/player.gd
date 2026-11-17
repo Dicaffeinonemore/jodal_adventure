@@ -1,9 +1,10 @@
 class_name Player
 extends CharacterBody2D
-## 4-direction player movement (no diagonals) and interaction.
+## 4-direction player movement (no diagonals), running, and interaction.
 ## Reads only input actions, so keyboard and touch work the same.
 
 const SPEED := 72.0
+const RUN_SPEED := 124.0  # holding "run" (Shift, or the joystick pushed all the way)
 const PROBE_DIST := 12.0
 const DIR_VECTORS := {
 	"down": Vector2.DOWN, "up": Vector2.UP, "left": Vector2.LEFT, "right": Vector2.RIGHT,
@@ -26,18 +27,19 @@ func _ready() -> void:
 	add_child(shape)
 	visual = CharacterVisual.new()
 	add_child(visual)
-	visual.set_look(GameState.hair_style, GameState.hair_color, GameState.outfit_color)
+	visual.set_look(GameState.get_look())
 
 
 func _physics_process(_delta: float) -> void:
 	var dir := Vector2.ZERO
 	if not GameState.is_input_locked():
 		dir = _read_direction()
-	velocity = dir * SPEED
+	var running := dir != Vector2.ZERO and Input.is_action_pressed("run")
+	velocity = dir * (RUN_SPEED if running else SPEED)
 	move_and_slide()
 	if dir != Vector2.ZERO:
 		facing = _dir_name(dir)
-	visual.face(facing, dir != Vector2.ZERO)
+	visual.face(facing, dir != Vector2.ZERO, running)
 
 
 ## Keeps the most recently pressed axis when two are held, so movement stays

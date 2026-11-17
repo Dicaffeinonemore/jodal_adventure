@@ -7,9 +7,12 @@ later, keeping the same file names and frame layout, and the game picks them up.
 Frame layout of character sheets (24x32 px per frame, feet at y=29):
   rows: 0 = down, 1 = up, 2 = side (facing right; left is drawn flipped)
   cols: 0..3 walk cycle (col 0 doubles as the idle frame)
-Player sheets are split into layers that the game tints at runtime:
-  player_base.png (skin, face, shirt, legs) / player_outfit.png (light gray -> tinted)
-  player_hair_0.png, player_hair_1.png (light gray -> tinted)
+Player sheets are split into layers (bottom to top) that the game tints at runtime:
+  player_skin.png (head, hands: white/gray -> skin tone)
+  player_outfit_<n>_base.png (shirt, tie, pants, shoes, body outline: as is)
+  player_outfit_<n>.png (jacket / vest / jumper / skirt: gray -> outfit color)
+  player_face_<0 male|1 female>.png (eyes, blush, mouth: as is)
+  player_hair_<n>.png (gray -> hair color)
 NPC sheets: one row (down), 2 idle frames.
 Tiles: one row of 16x16 tiles, order = TILES below = enum in scripts/world/tiles.gd.
 """
@@ -82,38 +85,78 @@ def outline(img, mask_imgs=None, color=OUTLINE):
 
 
 # ------------------------------------------------------------------ heads (16 wide)
+# Skin is drawn white/gray and tinted at runtime with the chosen skin tone.
+SKIN_T = (255, 255, 255, 255)
+SKIN_TD = (236, 206, 194, 255)  # = SKIN_D / SKIN per channel, so tinting with SKIN gives SKIN_D
 HEAD_DOWN = mirror([
     "....ssss", "..ssssss", ".sssssss", ".sssssss", "ssssssss", "ssssssss", "ssssssss",
-    "ssswesss", "ssseesss", "sbbssssm", ".sssssss", "..ssssss", "....oooo",
+    "ssssssss", "ssssssss", "ssssssss", ".sssssss", "..ssssss", "....oooo",
 ])
-HEAD_UP = [r.replace("w", "s").replace("e", "s").replace("b", "s").replace("m", "s") for r in HEAD_DOWN]
+HEAD_UP = HEAD_DOWN
 HEAD_SIDE = [
     "....ssssssss....", "..ssssssssssss..", ".ssssssssssssss.", ".ssssssssssssss.",
-    "ssssssssssssssss", "ssssssssssssssss", "ssssssssssssssss", "s" * 11 + "we" + "sss",
-    "s" * 11 + "ee" + "sss", "s" * 9 + "bb" + "ss" + "m" + "ss", ".ssssssssssssss.",
-    "..ssssssssssss..", "....oooooooo....",
+    "ssssssssssssssss", "ssssssssssssssss", "ssssssssssssssss", "ssssssssssssssss",
+    "ssssssssssssssss", "ssssssssssssssss", ".ssssssssssssss.", "..ssssssssssss..",
+    "....oooooooo....",
 ]
-HEAD_PAL = {"s": SKIN, "w": EYE_HI, "e": EYE, "b": BLUSH, "m": MOUTH, "o": SKIN_D}
+SKIN_PAL = {"s": SKIN_T, "o": SKIN_TD}
 
-# hair grids start one row above the head
+# Faces sit on top of the tinted skin (rows = head rows). Eyes: white
+# sclera around a dark pupil over a lighter iris, lash on the outer corner only.
+LASH = (34, 26, 40, 255)
+SCLERA = (255, 255, 255, 255)
+PUPIL = (30, 22, 34, 255)
+IRIS = (104, 70, 52, 255)
+BLUSH_A = (255, 120, 120, 110)  # translucent so it works on every skin tone
+MOUTH_F = (222, 96, 112, 255)
+FACE_PAL = {"k": LASH, "w": SCLERA, "p": PUPIL, "i": IRIS, "b": BLUSH_A, "m": MOUTH, "r": MOUTH_F}
+_EMPTY = ["." * 16] * 7
+FACE_DOWN = {
+    0: _EMPTY + ["...kpw....wpk...", "...wpw....wpw...", "...wiw....wiw...", ".bb....mm....bb."],
+    1: _EMPTY + ["..kkpw....wpkk..", "...wpw....wpw...", "...wiw....wiw...", ".bb....rr....bb."],
+}
+FACE_SIDE = {
+    0: _EMPTY + ["...........kp...", "...........wp...", "...........wi...", ".........bb..m.."],
+    1: _EMPTY + ["..........kkp...", "...........wp...", "...........wi...", ".........bb..r.."],
+}
+FACES = {0: FACE_DOWN, 1: None, 2: FACE_SIDE}
+
+# Hair grids start one row above the head. Styles (index = game's hair_style):
+# 0 짧은 머리, 1 가르마, 2 단발, 3 긴 머리, 4 포니테일
 _TOP = ["....HHHH", "..HHHHHH", ".HHHHHHH", "HHHIHHHH", "HHIIHHIH", "HIIIIHII", "HIIJIIIJ"]
+_BANG = "HIJ.JIJ."
+_PART = [
+    "....HHHHHHHH....", "..HHHHHHHHHHHH..", ".HHHHHHHHHHHHHH.", "HHHHHHHHHHIHHHHH",
+    "HHHHHHHIIHHI.HHH", "HIIIIIIIIIIJ.IIH", "HIIIIIIIIJJ..IIJ", "IIIIIJJJ.J...IJJ",
+    "IJJ...........IJ", "J..............J",
+]
 HAIR_DOWN = {
-    0: mirror(_TOP + ["HIJ.JIJ.", "IJ......", "J......."]),
-    1: mirror(_TOP + ["HIJ.JIJ.", "IIJ.....", "IIJ.....", "IJJ.....", "IJ......", "IJ......",
+    0: mirror(_TOP + [_BANG, "IJ......", "J......."]),
+    1: _PART,
+    2: mirror(_TOP + ["HIJIJIJI", "IIJ.....", "IIJ.....", "IIJ.....", "IJJ.....", ".JJ....."]),
+    3: mirror(_TOP + [_BANG, "IIJ.....", "IIJ.....", "IJJ.....", "IJ......", "IJ......",
                       "IJ......", "JJ......", ".J......"]),
+    4: mirror(_TOP + [_BANG, "IJ......", "IJ......", "J......."]),
 }
 _BACK = ["....HHHH", "..HHHHHH", ".HHHHHHH", "HHHHHHHH", "HHHIHHHH", "HIIIHIII", "HIIIIIII",
          "IIJIIIJI", "IJIJIJIJ", "IJJJJJJJ"]
 HAIR_UP = {
     0: mirror(_BACK + [".JJJJJJJ", "..JJJJJJ", "....JJJJ"]),
-    1: mirror(_BACK + ["IJJJJJJJ", "IJJIIJJJ", "IIJJJJJJ", ".IJJJJJJ", ".IIJJJJJ", "..IJJJJJ",
+    1: mirror(_BACK + [".JJJJJJJ", "..JJJJJJ", "....JJJJ"]),
+    2: mirror(_BACK + ["IJJJJJJJ", "IJJIIJJJ", "IIJJJJJJ", ".IJJJJJJ", ".JJJJJJJ"]),
+    3: mirror(_BACK + ["IJJJJJJJ", "IJJIIJJJ", "IIJJJJJJ", ".IJJJJJJ", ".IIJJJJJ", "..IJJJJJ",
                        "...JJJJJ"]),
+    4: mirror(_BACK + ["..JJJJJJ", "......JJ", "......IH", "......IH", "......II", "......IJ",
+                       "......IJ", ".......J"]),
 }
 _SIDE = ["....HHHHHHHH", "..HHHHHHHHHHHH", ".HHHHHHHHHHHHHH", "HHHHHHHHHIHHHHHH",
          "HHHHHHIHHIIHHIH", "HHIIIIIIIIIJIIJ", "IIIIIIIJIJ.J.J", "IIIIIJJ", "IIIIJ", "IIJJ"]
 HAIR_SIDE = {
     0: _SIDE + ["JJJ", ".J"],
-    1: _SIDE + ["IIIJ", "IIIJ", "IIJJ", "IIJ", "IIJ", "IJJ", "JJ", ".J"],
+    1: _SIDE[:7] + ["IIIIIJJ....IJJ", "IIIIJ", "IIJJ", "JJJ", ".J"],
+    2: _SIDE + ["IIIJ", "IIIJ", "IIJJ", "IJJ", ".J"],
+    3: _SIDE + ["IIIJ", "IIIJ", "IIJJ", "IIJ", "IIJ", "IJJ", "JJ", ".J"],
+    4: _SIDE[:7] + ["JIIIIJJ", "JIIIJ", "IJJJ", "HIJ", "HIJ", "IIJ", "IJ", "IJ", ".J"],
 }
 HAIR_PAL_TINT = {"H": G1, "I": G2, "J": G3}
 
@@ -123,6 +166,26 @@ def bob(col):
 
 
 # ------------------------------------------------------------------ bodies
+# An outfit = untinted parts (shirt, tie, pants, shoes) + one tinted top (and skirt).
+RIBBON = (220, 80, 110, 255)
+TIGHTS = ((52, 50, 70, 255), (40, 38, 56, 255))
+
+
+def outfit(**kw):
+    spec = {"top": "jacket", "tie": TIE, "shirt": SHIRT, "pants": (PANTS, PANTS_D), "skirt": False}
+    spec.update(kw)
+    return spec
+
+
+# index = game's outfit_style: 0 정장, 1 치마 정장, 2 니트 조끼, 3 활동복 점퍼
+OUTFITS = [
+    outfit(),
+    outfit(tie="ribbon", pants=TIGHTS, skirt=True),
+    outfit(top="vest"),
+    outfit(top="jumper", tie=None, pants=((128, 120, 100, 255), (100, 94, 78, 255))),
+]
+
+
 def draw_legs(img, row, col, pants=PANTS, pants_d=PANTS_D, shoe=SHOE):
     if row in (0, 1):
         lift_l = 1 if col == 1 else 0
@@ -144,38 +207,72 @@ def draw_legs(img, row, col, pants=PANTS, pants_d=PANTS_D, shoe=SHOE):
             fill(img, 13, 28, 16, 29, shoe)
 
 
-def draw_base_body(img, row, col, shirt=SHIRT, tie=TIE, skin=SKIN_D):
+def arm_x(col):
+    return {0: 10, 1: 12, 2: 10, 3: 8}[col]
+
+
+def draw_base_body(base, skin, row, col, spec):
+    """Shirt, tie/ribbon, vest sleeves (untinted) and hands (skin layer)."""
     t = 15 + bob(col)
+    shirt, tie = spec["shirt"], spec["tie"]
     if row == 0:
-        fill(img, 10, t, 13, t + 5, shirt)
-        if tie:
-            fill(img, 11, t, 12, t + 3, tie)
-            fill(img, 11, t + 4, 12, t + 4, TIE_D)
-        fill(img, 5, t + 5, 6, t + 6, skin)
-        fill(img, 17, t + 5, 18, t + 6, skin)
+        fill(base, 10, t, 13, t + 5, shirt)
+        if tie == "ribbon":
+            for x in (10, 13):
+                px(base, x, t, RIBBON)
+                px(base, x, t + 1, RIBBON)
+            fill(base, 11, t, 12, t, shade(RIBBON, 0.7))
+        elif tie:
+            fill(base, 11, t, 12, t + 3, tie)
+            fill(base, 11, t + 4, 12, t + 4, shade(tie, 0.7))
+        fill(skin, 5, t + 5, 6, t + 6, SKIN_TD)
+        fill(skin, 17, t + 5, 18, t + 6, SKIN_TD)
     elif row == 1:
-        fill(img, 5, t + 5, 6, t + 6, skin)
-        fill(img, 17, t + 5, 18, t + 6, skin)
+        fill(skin, 5, t + 5, 6, t + 6, SKIN_TD)
+        fill(skin, 17, t + 5, 18, t + 6, SKIN_TD)
     else:
-        fill(img, 14, t, 15, t + 1, shirt)
-        hx = {0: 10, 1: 12, 2: 10, 3: 8}[col]
-        fill(img, hx, t + 6, hx + 2, t + 7, skin)
+        fill(base, 14, t, 15, t + 1, shirt)
+        hx = arm_x(col)
+        fill(skin, hx, t + 6, hx + 2, t + 7, SKIN_TD)
+    if spec["top"] == "vest":  # white shirt sleeves
+        if row in (0, 1):
+            fill(base, 5, t, 6, t + 4, shirt)
+            fill(base, 17, t, 18, t + 4, shirt)
+            fill(base, 6, t + 1, 6, t + 4, SHIRT_D)
+            fill(base, 17, t + 1, 17, t + 4, SHIRT_D)
+        else:
+            ax = arm_x(col)
+            fill(base, ax, t + 1, ax + 2, t + 5, shirt)
+            fill(base, ax, t + 1, ax, t + 5, SHIRT_D)
 
 
-def draw_jacket(img, row, col, c1=G1, c2=G2, c3=G3):
+def draw_top(img, row, col, spec, c1=G1, c2=G2, c3=G3):
+    """The tinted part of the outfit: jacket / vest / jumper, plus the skirt."""
     t = 15 + bob(col)
+    kind = spec["top"]
     if row in (0, 1):
         fill(img, 7, t, 16, t + 7, c1)
         fill(img, 15, t + 1, 16, t + 7, c2)
         fill(img, 7, t + 7, 16, t + 7, c3)
-        fill(img, 5, t, 6, t + 4, c2)
-        fill(img, 17, t, 18, t + 4, c2)
-        fill(img, 6, t + 1, 6, t + 4, c3)
-        fill(img, 17, t + 1, 17, t + 4, c3)
-        if row == 0:  # V opening shows the shirt and tie
+        if kind != "vest":
+            fill(img, 5, t, 6, t + 4, c2)
+            fill(img, 17, t, 18, t + 4, c2)
+            fill(img, 6, t + 1, 6, t + 4, c3)
+            fill(img, 17, t + 1, 17, t + 4, c3)
+        if row == 0 and kind == "jacket":  # V opening shows the shirt and tie
             for y, (a, b) in enumerate(((10, 13), (10, 13), (10, 13), (11, 12), (11, 12))):
                 fill(img, a, t + y, b, t + y, T)
             px(img, 11, t + 6, c3)
+        elif row == 0 and kind == "vest":  # deeper V, shirt and tie show
+            for y, (a, b) in enumerate(((9, 14), (10, 13), (10, 13), (10, 13), (11, 12), (11, 12))):
+                fill(img, a, t + y, b, t + y, T)
+        elif row == 0:  # jumper: collar, tee at the neck, zipper
+            fill(img, 11, t, 12, t, T)
+            fill(img, 9, t, 10, t, c2)
+            fill(img, 13, t, 14, t, c2)
+            fill(img, 11, t + 1, 11, t + 6, c3)
+        elif kind == "jumper":
+            fill(img, 8, t, 15, t, c2)
         else:
             fill(img, 11, t + 2, 12, t + 6, c2)
     else:
@@ -183,49 +280,91 @@ def draw_jacket(img, row, col, c1=G1, c2=G2, c3=G3):
         fill(img, 8, t + 1, 9, t + 7, c2)
         fill(img, 8, t + 7, 15, t + 7, c3)
         fill(img, 14, t, 15, t + 1, T)  # shirt collar at the front
-        ax = {0: 10, 1: 12, 2: 10, 3: 8}[col]
-        fill(img, ax, t + 1, ax + 2, t + 5, c2)
-        fill(img, ax, t + 1, ax, t + 5, c3)
+        ax = arm_x(col)
+        if kind == "vest":
+            fill(img, ax, t + 1, ax + 2, t + 5, T)  # the shirt sleeve shows through
+        else:
+            fill(img, ax, t + 1, ax + 2, t + 5, c2)
+            fill(img, ax, t + 1, ax, t + 5, c3)
+    if spec["skirt"]:
+        if row in (0, 1):
+            fill(img, 8, 23, 15, 25, c1)
+            fill(img, 14, 23, 15, 25, c2)
+            fill(img, 8, 25, 15, 25, c3)
+        else:
+            fill(img, 8, 23, 15, 25, c1)
+            fill(img, 8, 23, 9, 25, c2)
+            fill(img, 8, 25, 15, 25, c3)
+
+
+def outline_union(target, masks, color=OUTLINE):
+    """Draws a 1 px outline into target around the union of the masks' opaque pixels."""
+    w, h = target.size
+    solid = [[any(m.getpixel((x, y))[3] > 0 for m in masks) for x in range(w)] for y in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if solid[y][x]:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and solid[ny][nx]:
+                    target.putpixel((x, y), color)
+                    break
 
 
 HEADS = {0: HEAD_DOWN, 1: HEAD_UP, 2: HEAD_SIDE}
 HAIRS = {0: HAIR_DOWN, 1: HAIR_UP, 2: HAIR_SIDE}
+LAYERS = ("skin", "cbase", "ctint", "face", "hair")  # bottom to top, same as CharacterVisual
 
 
-def char_layers(row, col, style, hair_pal=HAIR_PAL_TINT, jacket=(G1, G2, G3), extras=None,
-                shirt=SHIRT, tie=TIE, pants=(PANTS, PANTS_D)):
-    """Returns (base, outfit, hair) images for one frame."""
-    base = Image.new("RGBA", (FW, FH), T)
-    outfit = Image.new("RGBA", (FW, FH), T)
-    hair = Image.new("RGBA", (FW, FH), T)
+def frame_layers(row, col, spec, style, gender):
+    """One frame, split into the game's layers. skin/ctint/hair are tint-ready grays."""
+    L = {k: Image.new("RGBA", (FW, FH), T) for k in LAYERS}
     b = bob(col)
-    draw_legs(base, row, col, *pants)
-    draw_base_body(base, row, col, shirt, tie)
-    stamp(base, HEADS[row], X0, 2 + b, HEAD_PAL)
-    if jacket:
-        draw_jacket(outfit, row, col, *jacket)
+    draw_legs(L["cbase"], row, col, *spec["pants"])
+    draw_base_body(L["cbase"], L["skin"], row, col, spec)
+    stamp(L["skin"], HEADS[row], X0, 2 + b, SKIN_PAL)
+    if FACES[row]:
+        stamp(L["face"], FACES[row][gender], X0, 2 + b, FACE_PAL)
+    draw_top(L["ctint"], row, col, spec)
     if style is not None:
-        stamp(hair, [r.ljust(16, ".") for r in HAIRS[row][style]], X0, 1 + b, hair_pal)
-    if extras:
-        extras(base, outfit, hair, row, col, b)
-    # outlines: base+outfit share a silhouette, hair outlines itself on top
-    outline(base, [base, outfit])
-    outline(hair, [base, outfit, hair])
-    return base, outfit, hair
+        stamp(L["hair"], [r.ljust(16, ".") for r in HAIRS[row][style]], X0, 1 + b, HAIR_PAL_TINT)
+    # body outline goes in the untinted layer; hair outlines itself on top
+    outline_union(L["cbase"], [L["skin"], L["cbase"], L["ctint"]])
+    outline(L["hair"], [L["skin"], L["cbase"], L["ctint"], L["hair"]])
+    return L
+
+
+def player_sheet_names():
+    names = ["player_skin.png", "player_face_0.png", "player_face_1.png"]
+    names += [f"player_outfit_{i}_base.png" for i in range(len(OUTFITS))]
+    names += [f"player_outfit_{i}.png" for i in range(len(OUTFITS))]
+    names += [f"player_hair_{s}.png" for s in range(len(HAIR_DOWN))]
+    return names
 
 
 def make_player():
-    sheets = {n: Image.new("RGBA", (FW * 4, FH * 3), T) for n in
-              ("player_base.png", "player_outfit.png", "player_hair_0.png", "player_hair_1.png")}
+    sheets = {n: Image.new("RGBA", (FW * 4, FH * 3), T) for n in player_sheet_names()}
     for r in range(3):
         for c in range(4):
-            base, outfit, hair0 = char_layers(r, c, 0)
-            _, _, hair1 = char_layers(r, c, 1)
-            for name, im in (("player_base.png", base), ("player_outfit.png", outfit),
-                             ("player_hair_0.png", hair0), ("player_hair_1.png", hair1)):
-                sheets[name].paste(im, (c * FW, r * FH))
+            pos = (c * FW, r * FH)
+            for g in (0, 1):
+                L = frame_layers(r, c, OUTFITS[0], None, g)
+                sheets[f"player_face_{g}.png"].paste(L["face"], pos)
+            sheets["player_skin.png"].paste(L["skin"], pos)
+            for i, spec in enumerate(OUTFITS):
+                L = frame_layers(r, c, spec, None, 0)
+                sheets[f"player_outfit_{i}_base.png"].paste(L["cbase"], pos)
+                sheets[f"player_outfit_{i}.png"].paste(L["ctint"], pos)
+            for s in range(len(HAIR_DOWN)):
+                L = frame_layers(r, c, OUTFITS[0], s, 0)
+                sheets[f"player_hair_{s}.png"].paste(L["hair"], pos)
     for name, im in sheets.items():
         im.save(OUT / name)
+    for old in ("player_base.png", "player_outfit.png"):  # pre-11/17 layer layout
+        for p in (OUT / old, OUT / (old + ".import")):
+            if p.exists():
+                p.unlink()
 
 
 def merged(*layers):
@@ -239,50 +378,59 @@ def shade(c, k):
     return tuple(max(0, min(255, int(v * k))) for v in c[:3]) + (255,)
 
 
-def hair_pal(c):
-    return {"H": shade(c, 1.15), "I": c, "J": shade(c, 0.75)}
+def _multiply(im, rgb):
+    """Like Godot's self_modulate, but leaves the outline color alone."""
+    out = im.copy()
+    pxs = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = pxs[x, y]
+            if a and (r, g, b) != OUTLINE[:3]:
+                pxs[x, y] = (r * rgb[0] // 255, g * rgb[1] // 255, b * rgb[2] // 255, a)
+    return out
 
 
-def jacket_cols(c):
-    return (c, shade(c, 0.85), shade(c, 0.68))
-
-
-def human_npc(name, jacket, hair, style=0, extras=None, shirt=SHIRT, tie=TIE, pants=(PANTS, PANTS_D)):
+def human_npc(name, spec, jacket, hair, style=0, gender=0, extras=None, skin=SKIN):
     img = Image.new("RGBA", (FW * 2, FH), T)
-    for c in range(2):
-        col = 1 if c == 1 else 0  # frame 1 bobs
-        base, outfit, hr = char_layers(0, col if c == 1 else 0, style, hair_pal(hair),
-                                       jacket_cols(jacket) if jacket else None, extras, shirt, tie, pants)
-        img.paste(merged(base, outfit, hr), (c * FW, 0))
+    for c in range(2):  # frame 1 bobs
+        L = frame_layers(0, c, spec, style, gender)
+        mid = Image.new("RGBA", (FW, FH), T)  # over the clothes (apron)
+        top = Image.new("RGBA", (FW, FH), T)  # over the hair (glasses, cap)
+        if extras:
+            extras(mid, top, c, bob(c))
+        fr = merged(_multiply(L["skin"], skin), L["cbase"], _multiply(L["ctint"], jacket), mid,
+                    L["face"], _multiply(L["hair"], hair), top)
+        img.paste(fr, (c * FW, 0))
     img.save(OUT / f"npc_{name}.png")
 
 
-def glasses(base, outfit, hair, row, col, b):
+def glasses(mid, top, col, b):
+    y0 = 2 + b
     for x0 in (X0 + 2, X0 + 9):
         for x in range(x0, x0 + 5):
-            px(hair, x, 2 + b + 6, OUTLINE)
-            px(hair, x, 2 + b + 9, OUTLINE)
-        for y in range(6, 10):
-            px(hair, x0, 2 + b + y, OUTLINE)
-            px(hair, x0 + 4, 2 + b + y, OUTLINE)
-    px(hair, X0 + 7, 2 + b + 7, OUTLINE)
-    px(hair, X0 + 8, 2 + b + 7, OUTLINE)
+            px(top, x, y0 + 6, OUTLINE)
+            px(top, x, y0 + 10, OUTLINE)
+        for y in range(6, 11):
+            px(top, x0, y0 + y, OUTLINE)
+            px(top, x0 + 4, y0 + y, OUTLINE)
+    px(top, X0 + 7, y0 + 8, OUTLINE)
+    px(top, X0 + 8, y0 + 8, OUTLINE)
 
 
 def cap(color):
-    def fn(base, outfit, hair, row, col, b):
-        fill(hair, X0, 1 + b, X0 + 15, 4 + b, color)
-        fill(hair, X0 + 2, 0 + b, X0 + 13, 0 + b, color)
-        fill(hair, X0 + 3, 5 + b, X0 + 12, 5 + b, shade(color, 0.7))
+    def fn(mid, top, col, b):
+        fill(top, X0, 1 + b, X0 + 15, 4 + b, color)
+        fill(top, X0 + 2, 0 + b, X0 + 13, 0 + b, color)
+        fill(top, X0 + 3, 5 + b, X0 + 12, 5 + b, shade(color, 0.7))
     return fn
 
 
-def apron(base, outfit, hair, row, col, b):
+def apron(mid, top, col, b):
     t = 15 + b
-    fill(outfit, 9, t + 1, 14, t + 7, (252, 252, 252, 255))
-    fill(outfit, 9, t + 7, 14, t + 7, (220, 220, 225, 255))
-    fill(hair, X0 + 1, 1 + b, X0 + 14, 3 + b, (255, 255, 255, 255))  # kerchief
-    fill(hair, X0 + 1, 3 + b, X0 + 14, 3 + b, (225, 225, 230, 255))
+    fill(mid, 9, t + 1, 14, t + 7, (252, 252, 252, 255))
+    fill(mid, 9, t + 7, 14, t + 7, (220, 220, 225, 255))
+    fill(top, X0 + 1, 1 + b, X0 + 14, 3 + b, (255, 255, 255, 255))  # kerchief
+    fill(top, X0 + 1, 3 + b, X0 + 14, 3 + b, (225, 225, 230, 255))
 
 
 def stork(img, ox, b):
@@ -349,12 +497,12 @@ def mascot(name, fn):
 def make_npcs():
     mascot("narumi", stork)
     mascot("dari", squirrel)
-    human_npc("team_leader", (52, 62, 112, 255), (70, 70, 76, 255), 0, glasses)
-    human_npc("officer_school", (96, 160, 110, 255), (110, 70, 44, 255), 1, glasses, tie=None)
-    human_npc("senior", (196, 120, 156, 255), (44, 34, 34, 255), 1, tie=(250, 210, 90, 255))
-    human_npc("vendor", (232, 180, 60, 255), (34, 34, 34, 255), 0, cap((60, 110, 190, 255)),
-              tie=None, pants=((90, 80, 70, 255), (70, 60, 52, 255)))
-    human_npc("cafeteria", (240, 130, 110, 255), (120, 120, 120, 255), 0, apron, tie=None)
+    human_npc("team_leader", outfit(), (52, 62, 112), (70, 70, 76), 0, 0, glasses)
+    human_npc("officer_school", outfit(tie=None), (96, 160, 110), (130, 84, 52), 3, 1, glasses)
+    human_npc("senior", outfit(tie=(250, 210, 90, 255)), (196, 120, 156), (60, 46, 46), 2, 1)
+    human_npc("vendor", outfit(top="jumper", tie=None, pants=((90, 80, 70, 255), (70, 60, 52, 255))),
+              (232, 180, 60), (40, 40, 40), 0, 0, cap((60, 110, 190, 255)), skin=(236, 196, 156))
+    human_npc("cafeteria", outfit(tie=None), (240, 130, 110), (140, 140, 140), 0, 1, apron)
 
 
 # ------------------------------------------------------------------ tiles
@@ -657,43 +805,45 @@ def make_touch_ui():
     circle_button("joy_knob.png", 30, (255, 255, 255, 120))
 
 
+# Same values as GameState (scripts/autoload/game_state.gd), for the preview only.
+PV_SKIN = [(255, 226, 200), (244, 200, 160), (214, 160, 116), (150, 100, 70)]
+PV_HAIR = [(58, 47, 47), (138, 90, 58), (224, 176, 96), (107, 123, 208)]
+PV_OUTFIT = [(60, 77, 140), (74, 74, 82), (201, 138, 106), (240, 240, 240)]
+
+
+def player_frame(r, c, gender=0, skin=0, hair_style=0, hair_color=0, outfit_style=0, outfit_color=0):
+    box = (c * FW, r * FH, (c + 1) * FW, (r + 1) * FH)
+    load = lambda n: Image.open(OUT / n).crop(box)
+    return merged(_multiply(load("player_skin.png"), PV_SKIN[skin]),
+                  load(f"player_outfit_{outfit_style}_base.png"),
+                  _multiply(load(f"player_outfit_{outfit_style}.png"), PV_OUTFIT[outfit_color]),
+                  load(f"player_face_{gender}.png"),
+                  _multiply(load(f"player_hair_{hair_style}.png"), PV_HAIR[hair_color]))
+
+
 def preview(path):
-    """Writes a 4x preview sheet of every character (tinted like the game) for review."""
+    """Writes a 4x review sheet: player options (tinted like the game), NPCs, tiles."""
+    cells = []
+    for s in range(len(HAIR_DOWN)):  # row 0: hair styles, front / side / back
+        cells.append([player_frame(0, 0, int(s >= 2), 0, s, 1), player_frame(2, 0, int(s >= 2), 0, s, 1),
+                      player_frame(1, 0, int(s >= 2), 0, s, 1)])
+    rows = [[f for trio in cells for f in trio][:15]]
+    rows.append([player_frame(0, 0, 1 if o == 1 else 0, o % 4, 3 if o == 1 else 0, o, o, o) for o in range(4)]
+                + [player_frame(2, 1, 1 if o == 1 else 0, o % 4, 3 if o == 1 else 0, o, o, o) for o in range(4)]
+                + [player_frame(0, c, 0, 1, 1, 0, 2, 2) for c in range(4)])
     names = ["npc_narumi.png", "npc_dari.png", "npc_team_leader.png", "npc_officer_school.png",
              "npc_senior.png", "npc_vendor.png", "npc_cafeteria.png"]
-    sheet = Image.new("RGBA", (FW * 12, FH * 4), (70, 80, 110, 255))
-    base = Image.open(OUT / "player_base.png")
-    outfit = Image.open(OUT / "player_outfit.png")
-    for hs in (0, 1):
-        hair = Image.open(OUT / f"player_hair_{hs}.png")
-        for r in range(3):
-            for c in range(4):
-                box = (c * FW, r * FH, (c + 1) * FW, (r + 1) * FH)
-                fr = Image.new("RGBA", (FW, FH), T)
-                fr.alpha_composite(base.crop(box))
-                o = outfit.crop(box)
-                fr.alpha_composite(_multiply(o, (60, 77, 140)))
-                fr.alpha_composite(_multiply(hair.crop(box), (138, 90, 58)))
-                sheet.paste(fr, ((c + hs * 4) * FW, r * FH), fr)
-    for i, n in enumerate(names):
-        im = Image.open(OUT / n)
-        sheet.paste(im.crop((0, 0, FW, FH)), ((8 + i % 4) * FW, (i // 4) * FH), im.crop((0, 0, FW, FH)))
+    rows.append([Image.open(OUT / n).crop((0, 0, FW, FH)) for n in names]
+                + [player_frame(1, c, 1, 2, 4, 2, 3, 1) for c in range(4)])
+    sheet = Image.new("RGBA", (FW * 15, FH * len(rows) + 32), (70, 80, 110, 255))
+    for y, row in enumerate(rows):
+        for x, fr in enumerate(row):
+            sheet.paste(fr, (x * FW, y * FH), fr)
     tiles = Image.open(OUT / "tiles.png")
-    sheet.paste(tiles.crop((0, 0, min(tiles.width, FW * 12), 16)), (0, FH * 3), tiles.crop((0, 0, min(tiles.width, FW * 12), 16)))
-    rest = tiles.crop((FW * 12, 0, tiles.width, 16))
-    sheet.paste(rest, (0, FH * 3 + 16), rest)
+    for i in range(0, tiles.width, FW * 15):
+        part = tiles.crop((i, 0, min(tiles.width, i + FW * 15), 16))
+        sheet.paste(part, (0, FH * len(rows) + 16 * (i // (FW * 15))), part)
     sheet.resize((sheet.width * 4, sheet.height * 4), Image.NEAREST).save(path)
-
-
-def _multiply(im, rgb):
-    out = im.copy()
-    pxs = out.load()
-    for y in range(out.height):
-        for x in range(out.width):
-            r, g, b, a = pxs[x, y]
-            if a and (r, g, b) != OUTLINE[:3]:
-                pxs[x, y] = (r * rgb[0] // 255, g * rgb[1] // 255, b * rgb[2] // 255, a)
-    return out
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@
 3. 웹 빌드: 에디터 메뉴 Editor > Manage Export Templates에서 템플릿 설치 후 Project > Export > Web.
 4. 바로 해 보기: `python tools/make_single_html.py`로 만든 `build/jodal_rookie.html`을 더블클릭한다(서버 불필요, 크롬·엣지 권장).
 
-조작: 방향키/WASD 이동, Space·Enter 말 걸기, Esc 메뉴, Q 아이템, 하단 메뉴 바(업무·가방·성장·저장). 운전 미니게임은 ← →.
+조작: 방향키/WASD 이동(Shift를 누르면 달리기), Space·Enter 말 걸기, Esc 메뉴, Q 아이템, 하단 메뉴 바(업무·가방·성장·저장). 운전 미니게임은 ← →.
 
 개발 규칙과 구조는 `CLAUDE.md`, 기획·우선순위·일정은 `docs/plan.md`.
 임시 도트는 `python tools/gen_placeholders.py`로 다시 만들 수 있다(Pillow 필요, macOS는 python3).

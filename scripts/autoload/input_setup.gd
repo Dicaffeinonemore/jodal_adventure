@@ -13,6 +13,7 @@ const KEYS := {
 	"interact": [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_Z],
 	"cancel": [KEY_ESCAPE, KEY_X],
 	"quick_item": [KEY_Q],
+	"run": [KEY_SHIFT],
 	"debug_touch_ui": [KEY_F2],
 }
 

@@ -1,5 +1,6 @@
 extends Control
-## 출입증 발급: name + look. Left: animated preview (3x). Right: form.
+## 출입증 발급 (also the wardrobe): name + look (gender, skin, hair, outfit and colors).
+## Left: animated preview (3x). Right: form. Option names live in Story.LOOK_NAMES.
 ##
 ## Mobile browsers don't reliably open the on-screen keyboard for a Godot
 ## LineEdit, so on touch web builds tapping the name field opens the browser's
@@ -10,10 +11,11 @@ const PREVIEW_SCALE := 3.0
 
 var _name_edit: LineEdit
 var _preview: CharacterVisual
-var _hair_style := 0
-var _hair_color := 0
-var _outfit_color := 0
-var _value_labels: Dictionary = {}
+const COLOR_KEYS := ["skin", "hair_color", "outfit_color"]
+
+var _look: Dictionary = {}
+var _value_labels: Dictionary = {}  # key -> Label (named options)
+var _swatches: Dictionary = {}  # key -> ColorRect (color options)
 var _turn_t := 0.0
 var _turn_index := 0
 
@@ -27,9 +29,9 @@ func _ready() -> void:
 	add_child(bg)
 
 	if GameState.editing_look:
-		_hair_style = GameState.hair_style
-		_hair_color = GameState.hair_color
-		_outfit_color = GameState.outfit_color
+		_look = GameState.get_look()
+	else:
+		_look = {"gender": 0, "skin": 0, "hair_style": 0, "hair_color": 0, "outfit_style": 0, "outfit_color": 0}
 	var title_text := "옷장" if GameState.editing_look else "출입증 발급"
 	var title := UiTheme.make_label(title_text, UiTheme.SIZE_LARGE, UiTheme.COLOR_BORDER, true)
 	title.position = Vector2(24, 14)
@@ -62,8 +64,8 @@ func _ready() -> void:
 	form.anchor_bottom = 0.5
 	form.offset_left = -60
 	form.offset_right = -32
-	form.offset_top = -90
-	form.add_theme_constant_override("separation", 8)
+	form.offset_top = -112
+	form.add_theme_constant_override("separation", 5)
 	add_child(form)
 
 	form.add_child(UiTheme.make_label("이름 (최대 %d자)" % MAX_NAME, UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM))
@@ -72,19 +74,18 @@ func _ready() -> void:
 	_name_edit.placeholder_text = "이름을 입력하세요"
 	if GameState.editing_look:
 		_name_edit.text = GameState.player_name
-	_name_edit.custom_minimum_size = Vector2(0, 24)
+	_name_edit.custom_minimum_size = Vector2(0, 22)
 	if _use_browser_prompt():
 		_name_edit.editable = false
 		_name_edit.gui_input.connect(_on_name_tapped)
 	form.add_child(_name_edit)
 
-	form.add_child(_option_row("헤어", "hair_style"))
-	form.add_child(_option_row("머리색", "hair_color"))
-	form.add_child(_option_row("옷 색", "outfit_color"))
+	for key in GameState.LOOK_KEYS:
+		form.add_child(_option_row(str(Story.LOOK_LABELS[key]), key))
 
 	var go := Button.new()
 	go.text = "이대로 할게요" if GameState.editing_look else "출근 준비 끝!"
-	go.custom_minimum_size = Vector2(0, 28)
+	go.custom_minimum_size = Vector2(0, 26)
 	go.pressed.connect(_on_confirm)
 	form.add_child(go)
 
@@ -109,38 +110,53 @@ func _option_row(label: String, key: String) -> HBoxContainer:
 	row.add_child(l)
 	var prev := Button.new()
 	prev.text = "◀"
-	prev.custom_minimum_size = Vector2(28, 22)
+	prev.custom_minimum_size = Vector2(26, 20)
 	prev.pressed.connect(_change.bind(key, -1))
 	row.add_child(prev)
-	var value := UiTheme.make_label("")
-	value.custom_minimum_size = Vector2(48, 0)
-	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	row.add_child(value)
-	_value_labels[key] = value
+	var slot := CenterContainer.new()
+	slot.custom_minimum_size = Vector2(76, 0)
+	row.add_child(slot)
+	if key in COLOR_KEYS:
+		var frame := ColorRect.new()  # dark border around the swatch
+		frame.color = Color("141a30")
+		frame.custom_minimum_size = Vector2(42, 14)
+		slot.add_child(frame)
+		var swatch := ColorRect.new()
+		swatch.position = Vector2(1, 1)
+		swatch.size = Vector2(40, 12)
+		frame.add_child(swatch)
+		_swatches[key] = swatch
+	else:
+		var value := UiTheme.make_label("")
+		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		slot.add_child(value)
+		_value_labels[key] = value
 	var next := Button.new()
 	next.text = "▶"
-	next.custom_minimum_size = Vector2(28, 22)
+	next.custom_minimum_size = Vector2(26, 20)
 	next.pressed.connect(_change.bind(key, 1))
 	row.add_child(next)
 	return row
 
 
 func _change(key: String, delta: int) -> void:
-	match key:
-		"hair_style":
-			_hair_style = posmod(_hair_style + delta, GameState.HAIR_STYLE_COUNT)
-		"hair_color":
-			_hair_color = posmod(_hair_color + delta, GameState.HAIR_COLORS.size())
-		"outfit_color":
-			_outfit_color = posmod(_outfit_color + delta, GameState.OUTFIT_COLORS.size())
+	var count := GameState.look_option_count(key)
+	_look[key] = posmod(int(_look.get(key, 0)) + delta, count)
+	if key == "gender":  # a fresh start that fits: hair and outfit follow the gender
+		var defaults: Array = GameState.GENDER_DEFAULTS[int(_look["gender"])]
+		_look["hair_style"] = int(defaults[0])
+		_look["outfit_style"] = int(defaults[1])
 	_apply_look()
 
 
 func _apply_look() -> void:
-	_preview.set_look(_hair_style, _hair_color, _outfit_color)
-	(_value_labels["hair_style"] as Label).text = "%d / %d" % [_hair_style + 1, GameState.HAIR_STYLE_COUNT]
-	(_value_labels["hair_color"] as Label).text = "%d / %d" % [_hair_color + 1, GameState.HAIR_COLORS.size()]
-	(_value_labels["outfit_color"] as Label).text = "%d / %d" % [_outfit_color + 1, GameState.OUTFIT_COLORS.size()]
+	_preview.set_look(_look)
+	for key: String in _value_labels:
+		var names: Array = Story.LOOK_NAMES[key]
+		(_value_labels[key] as Label).text = str(names[int(_look[key])])
+	(_swatches["skin"] as ColorRect).color = GameState.SKIN_TONES[int(_look["skin"])]
+	(_swatches["hair_color"] as ColorRect).color = GameState.HAIR_COLORS[int(_look["hair_color"])]
+	(_swatches["outfit_color"] as ColorRect).color = GameState.OUTFIT_COLORS[int(_look["outfit_color"])]
 
 
 func _use_browser_prompt() -> bool:
@@ -170,12 +186,10 @@ func _on_confirm() -> void:
 	if GameState.editing_look:
 		GameState.editing_look = false
 		GameState.player_name = player_name
-		GameState.hair_style = _hair_style
-		GameState.hair_color = _hair_color
-		GameState.outfit_color = _outfit_color
+		GameState.set_look(_look)
 		GameState.save_game()
 		SceneRouter.goto(SceneRouter.HOME, "wardrobe")
 		return
-	GameState.new_game(player_name, _hair_style, _hair_color, _outfit_color)
+	GameState.new_game(player_name, _look)
 	GameState.save_game()
 	SceneRouter.goto(SceneRouter.HOME, "bed")

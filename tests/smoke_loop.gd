@@ -49,16 +49,26 @@ func _run() -> void:
 	await _wait_router()
 	var cc := current_scene
 	(cc.get("_name_edit") as LineEdit).text = "테스트"
-	cc.call("_change", "hair_style", 1)
+	cc.call("_change", "gender", 1)  # -> female defaults: long hair, skirt suit
+	cc.call("_change", "hair_style", 1)  # -> ponytail
+	cc.call("_change", "skin", -1)
+	cc.call("_change", "outfit_style", 1)  # -> knit vest
 	cc.call("_on_confirm")
 	await _wait_router()
 	_check(_map() == "home", "new game should start at home, got %s" % _map())
+	var look: Dictionary = gs.call("get_look")
+	_check(int(look["gender"]) == 1 and int(look["hair_style"]) == 4 and int(look["skin"]) == 3 			and int(look["outfit_style"]) == 2, "look not saved: %s" % look)
 
 	_step = "home intro"
 	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "home intro never opened")
 	await _shot("01_home_intro", 60)
 	await _drain_dialogue()
 	_check(gs.call("has_flag", "home_intro"), "home_intro flag missing")
+
+	_step = "run"
+	var walked := await _move_for("move_right", false, 20)
+	var ran := await _move_for("move_right", true, 20)
+	_check(walked > 10.0 and ran > walked * 1.5, "running not faster: walk %.1f px, run %.1f px" % [walked, ran])
 
 	_step = "fridge"
 	var bars := int(gs.call("item_count", "energybar"))
@@ -286,6 +296,20 @@ func _drain_dialogue(picks: Array = []) -> void:
 		elif not _a("SceneRouter").get("busy"):
 			quiet += 1
 		await _frames(2)
+
+
+## Holds a move action (and "run") for some frames; returns the distance moved.
+func _move_for(action: String, run: bool, frames: int) -> float:
+	var p := current_scene.get("player") as Node2D
+	var start := p.position
+	if run:
+		Input.action_press("run")
+	Input.action_press(action)
+	await _frames(frames)
+	Input.action_release(action)
+	Input.action_release("run")
+	await _frames(2)
+	return p.position.distance_to(start)
 
 
 func _walk_and_interact(cell: Vector2i, facing: String) -> void:
