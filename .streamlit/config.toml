@@ -1,0 +1,16 @@
+# Streamlit Community Cloud reads this from the repository root.
+[server]
+headless = true
+# The game page is ~18MB in one websocket message (default limit 200MB).
+maxMessageSize = 200
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
+
+[theme]
+base = "dark"
+backgroundColor = "#000000"

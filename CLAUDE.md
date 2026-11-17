@@ -66,6 +66,10 @@ mkdir -p build/web && godot --headless --path . --export-release "Web" build/web
 #      (메일·메신저가 .html 첨부를 막거나 바꾸는 경우가 있다).
 python3 tools/make_single_html.py   # Windows는 python
 
+# 3-2) Streamlit Community Cloud 배포용 복사 (배포할 때만. deploy/jodal_rookie.html.gz를 커밋·push하면 자동 재배포)
+#      streamlit_app.py가 이 파일을 components.html iframe으로 전체 화면에 띄운다. 로컬 확인: streamlit run streamlit_app.py
+python tools/pack_streamlit.py
+
 # 4) 로컬 서버로 확인. 같은 와이파이의 휴대폰에서 http://<PC IP>:8000 으로 접속
 python3 -m http.server 8000 -d build/web   # Windows는 python
 ```
@@ -139,6 +143,7 @@ tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기�
 tests/audio_check.gd     소리 파일 임포트 확인 (BGM 루프, 효과음 존재)
 tests/drive_bot.gd       납품 운전 8개 코스 자동 도착 확인
 tools/, docs/            Godot이 무시함(.gdignore)
+streamlit_app.py, requirements.txt, .streamlit/, deploy/   Streamlit Community Cloud 배포 (README "Streamlit 배포")
 ```
 
 ### 하루 (story.gd)
