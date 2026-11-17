@@ -10,12 +10,18 @@ class_name TaskData
 ##   score >= required + GOOD_MARGIN -> 우수, >= required -> 보통, below -> 미흡.
 ## So the best pick is usually the cheapest vendor that still clears "required"
 ## with the cargo condition you expect to keep. "fragile" cargo takes 1.5x damage.
+## Before driving, the quality inspection (QcGame) can raise the vendor quality:
+## every defect caught is swapped for a good item (qc_quality()).
+## "kind" picks the product picture on the inspection belt: furniture, device, soft, metal.
 
 const GOOD_MARGIN := 15.0
+const QC_ITEMS := 10  # goods on the inspection belt
+const QC_REPLACE_GAIN := 0.35  # share of the missing quality won back if every defect is caught
 
 const TASKS := [
 	{
 		"id": "school_desks",
+		"kind": "furniture",
 		"destination": "school",
 		"item": "교실 책상 30개",
 		"budget": 600,
@@ -34,6 +40,7 @@ const TASKS := [
 	},
 	{
 		"id": "school_projectors",
+		"kind": "device",
 		"destination": "school",
 		"item": "빔프로젝터 5대",
 		"budget": 450,
@@ -52,6 +59,7 @@ const TASKS := [
 	},
 	{
 		"id": "school_purifiers",
+		"kind": "device",
 		"destination": "school",
 		"item": "공기청정기 10대",
 		"budget": 500,
@@ -70,6 +78,7 @@ const TASKS := [
 	},
 	{
 		"id": "school_mats",
+		"kind": "soft",
 		"destination": "school",
 		"item": "체육 매트 20장",
 		"budget": 300,
@@ -88,6 +97,7 @@ const TASKS := [
 	},
 	{
 		"id": "school_shelves",
+		"kind": "furniture",
 		"destination": "school",
 		"item": "도서관 책장 8개",
 		"budget": 400,
@@ -106,6 +116,7 @@ const TASKS := [
 	},
 	{
 		"id": "school_microscopes",
+		"kind": "device",
 		"destination": "school",
 		"item": "과학실 현미경 15대",
 		"budget": 700,
@@ -124,6 +135,7 @@ const TASKS := [
 	},
 	{
 		"id": "school_trays",
+		"kind": "metal",
 		"destination": "school",
 		"item": "급식실 식판 300개",
 		"budget": 250,
@@ -143,6 +155,7 @@ const TASKS := [
 	# ---- 한빛소방서
 	{
 		"id": "fire_suits",
+		"kind": "soft",
 		"destination": "fire",
 		"item": "방화복 20벌",
 		"budget": 800,
@@ -161,6 +174,7 @@ const TASKS := [
 	},
 	{
 		"id": "fire_breathing",
+		"kind": "device",
 		"destination": "fire",
 		"item": "공기호흡기 10세트",
 		"budget": 900,
@@ -180,6 +194,7 @@ const TASKS := [
 	# ---- 한빛보건소
 	{
 		"id": "clinic_wheelchairs",
+		"kind": "metal",
 		"destination": "clinic",
 		"item": "휠체어 15대",
 		"budget": 450,
@@ -198,6 +213,7 @@ const TASKS := [
 	},
 	{
 		"id": "clinic_thermometers",
+		"kind": "device",
 		"destination": "clinic",
 		"item": "전자 체온계 100개",
 		"budget": 200,
@@ -217,6 +233,7 @@ const TASKS := [
 	# ---- 한빛동 행정복지센터
 	{
 		"id": "center_chairs",
+		"kind": "furniture",
 		"destination": "center",
 		"item": "민원실 대기 의자 40개",
 		"budget": 300,
@@ -235,6 +252,7 @@ const TASKS := [
 	},
 	{
 		"id": "center_generators",
+		"kind": "device",
 		"destination": "center",
 		"item": "비상 발전기 2대",
 		"budget": 600,
@@ -286,6 +304,18 @@ static func grade(score: float, required: float) -> String:
 	if score >= required:
 		return "보통"
 	return "미흡"
+
+
+## Defective items in a vendor's batch of QC_ITEMS (lower quality, more defects).
+static func qc_defects(quality: int) -> int:
+	return clampi(roundi((100 - quality) / 12.0), 1, 5)
+
+
+## Vendor quality after the inspection: caught defects are replaced.
+static func qc_quality(quality: int, defects: int, caught: int) -> int:
+	if defects <= 0:
+		return quality
+	return mini(100, roundi(quality + (100 - quality) * QC_REPLACE_GAIN * caught / float(defects)))
 
 
 static func reputation_for(grade_name: String) -> int:

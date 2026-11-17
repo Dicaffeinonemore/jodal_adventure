@@ -2,7 +2,7 @@ class_name Hud
 extends CanvasLayer
 ## Tycoon-style HUD.
 ##   top bar:    day + clock | rank name | fatigue bar | condition ...... wallet | team budget | reputation
-##   below it:   current objective
+##   below it:   promotion gauge (left: exp toward the next rank), current objective (center)
 ##   bottom bar: 업무 / 가방 / 성장 / 저장 buttons (Story.open_panel)
 ## Rewards float up from the player (GameState.popup) and numbers count up.
 ## Esc / touch B opens the full menu.
@@ -20,6 +20,10 @@ var _money_label: Label
 var _budget_label: Label
 var _rep_label: Label
 var _objective: Label
+var _exp_caption: Label
+var _exp_bar: ProgressBar
+var _exp_label: Label
+var _exp_tween: Tween
 var _bar: HBoxContainer
 var _fill: StyleBoxFlat
 var _popups: Control
@@ -81,6 +85,28 @@ func _ready() -> void:
 	row.add_child(_budget_label)
 	_rep_label = UiTheme.make_label("", UiTheme.SIZE_SMALL, Color("9fd3ff"))
 	row.add_child(_rep_label)
+
+	# ---- promotion gauge
+	var exp_panel := PanelContainer.new()
+	exp_panel.position = Vector2(m, 28)
+	exp_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	exp_panel.add_theme_stylebox_override("panel", UiTheme.panel_box(0.8))
+	_root.add_child(exp_panel)
+	var exp_row := HBoxContainer.new()
+	exp_row.add_theme_constant_override("separation", 4)
+	exp_panel.add_child(exp_row)
+	_exp_caption = UiTheme.make_label("", UiTheme.SIZE_SMALL, UiTheme.COLOR_WARN)
+	exp_row.add_child(_exp_caption)
+	_exp_bar = ProgressBar.new()
+	_exp_bar.custom_minimum_size = Vector2(64, 6)
+	_exp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_exp_bar.show_percentage = false
+	var exp_fill := (UiTheme.theme.get_stylebox("fill", "ProgressBar") as StyleBoxFlat).duplicate() as StyleBoxFlat
+	exp_fill.bg_color = UiTheme.COLOR_WARN
+	_exp_bar.add_theme_stylebox_override("fill", exp_fill)
+	exp_row.add_child(_exp_bar)
+	_exp_label = UiTheme.make_label("", UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM)
+	exp_row.add_child(_exp_label)
 
 	# ---- objective
 	_objective = UiTheme.make_label("", UiTheme.SIZE, UiTheme.COLOR_WARN)
@@ -155,6 +181,7 @@ func _on_bar_pressed(panel: String) -> void:
 func _refresh() -> void:
 	_day_label.text = "%d일차 %s" % [GameState.day, GameState.clock_text()]
 	_name_label.text = "%s %s" % [GameState.rank_name(), GameState.player_name]
+	_refresh_exp()
 	_fatigue_bar.value = GameState.fatigue
 	_fatigue_label.text = str(GameState.fatigue)
 	if GameState.fatigue >= GameState.FATIGUE_BAD_AT:
@@ -176,6 +203,25 @@ func _refresh() -> void:
 	_count_to("rep", GameState.reputation)
 	var obj := Story.objective_text()
 	_objective.text = ("▶ " + obj.replace("목표: ", "")) if obj != "" else ""
+
+
+func _refresh_exp() -> void:
+	var p := GameState.rank_progress()
+	if p.y <= 0:
+		_exp_caption.text = "최고 직급"
+		_exp_bar.max_value = 1
+		_exp_bar.value = 1
+		_exp_label.text = "경험치 %d" % GameState.experience
+		return
+	_exp_caption.text = "%s까지" % GameState.RANKS[GameState.rank + 1]
+	_exp_label.text = "%d/%d" % [p.x, p.y]
+	if not is_equal_approx(_exp_bar.max_value, p.y):  # new rank: start the bar over
+		_exp_bar.max_value = p.y
+		_exp_bar.value = 0
+	if _exp_tween != null and _exp_tween.is_valid():
+		_exp_tween.kill()
+	_exp_tween = create_tween()
+	_exp_tween.tween_property(_exp_bar, "value", float(p.x), COUNT_TIME)
 
 
 ## Animates a number label from what it shows now to the new value.

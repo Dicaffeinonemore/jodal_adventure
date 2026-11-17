@@ -23,6 +23,7 @@ enum Step { NONE, ACCEPTED, VENDOR_CHOSEN, ARRIVED, DELIVERED }
 const DAILY_TASKS := 3
 const DRIVE_FATIGUE := 20
 const SELECT_FATIGUE := 8
+const QC_FATIGUE := 5
 const RETURN_FATIGUE := 7
 const HELP_FATIGUE := 8
 const URGENT_CHANCE := 0.25
@@ -48,6 +49,7 @@ const NPCS := {
 	"nurse": {"name": "윤 간호사", "sprite": "npc_nurse.png", "color": Color("a8dcff")},
 	"officer_center": {"name": "오 주무관", "sprite": "npc_officer_center.png", "color": Color("c8e6a0")},
 	"citizen": {"name": "동네 어르신", "sprite": "npc_citizen.png", "color": Color("e0d0c0")},
+	"inspector": {"name": "서 검사관", "sprite": "npc_inspector.png", "color": Color("b0e0ff")},
 }
 ## 출입증·옷장 화면의 선택지 이름 (GameState.LOOK_KEYS). 색 항목은 이름 대신 색 견본을 보여 준다.
 const LOOK_LABELS := {
@@ -106,6 +108,7 @@ const AMBIENT := {
 	"firefighter": ["장비가 튼튼해야 현장에서 마음 놓고 뛰어들 수 있어요.", "소방차는 언제든 출동할 수 있게 매일 점검해요."],
 	"nurse": ["진료실 물품은 주민 건강과 바로 이어져요.", "그래서 품질이 제일 중요해요!"],
 	"citizen": ["번호표 뽑고 기다리면 금방 불러 줘요.", "센터 의자가 낡아서 허리가 아팠는데, 새 의자 오면 좋겠네. 허허."],
+	"inspector": ["품질검사실 서 검사관이에요. 업체를 정했으면 납품 전에 검사대로 오세요.", "흠집, 얼룩, 금, 빠진 부분! 이 네 가지만 잘 보면 돼요."],
 }
 
 ## Shown once each, by Narumi, the first time the matching moment comes up.
@@ -124,6 +127,10 @@ const POLICY_TIPS := {
 	"report": [
 		"업체를 고를 때는 가격만 보지 않아요. 품질과 납품 능력까지 함께 따져야 예산을 제대로 아낄 수 있어요.",
 		"조달청 청훈이 '좋은 제품을 보다 싸고, 빠르고, 바르게'예요. 오늘 한 일이 딱 그거죠!",
+	],
+	"qc": [
+		"조달청에는 조달물자의 품질을 관리하는 조달품질원이 있어요. 2014년에 품질관리단에서 이름이 바뀌었어요.",
+		"납품 전에 불량품을 걸러 내면 수요기관이 믿고 쓸 수 있어요.",
 	],
 	"urgent": ["재난처럼 급할 때는 입찰 공고 기간을 5일로 줄인 '긴급입찰'로 빠르게 계약하기도 해요."],
 	"place_fire": ["국민 안전과 관련된 물품은 조달청이 지정한 전문검사기관이 납품 전에 검사하기도 해요."],
@@ -240,6 +247,10 @@ func objective_text() -> String:
 		if step() == Step.ARRIVED and destination_id() == map:
 			return "목표: %s께 납품하기" % (DESTINATIONS[map] as Dictionary)["where"]
 		return "목표: 맨 아래 출구로 나가 청사로 돌아가기"
+	if map == "lab":
+		if step() == Step.VENDOR_CHOSEN:
+			return "목표: 아래 문으로 나가 주차장 납품 차량으로 가기" if qc_done() else "목표: 검사대에서 납품 전 품질 검사하기"
+		return ""
 	if not GameState.has_flag("intro_done"):
 		return ""
 	if GameState.task.is_empty():
@@ -252,6 +263,8 @@ func objective_text() -> String:
 		Step.ACCEPTED:
 			return "목표: 내 자리 나라장터 PC에서 업체 고르기"
 		Step.VENDOR_CHOSEN:
+			if not qc_done():
+				return "목표: 1층 로비 왼쪽 품질검사실에서 검사하기"
 			return "목표: 주차장 납품 차량으로 출발하기"
 		Step.ARRIVED:
 			return "목표: 다시 차를 타고 %s에 납품하기" % destination_name()
@@ -271,6 +284,8 @@ func objective_target() -> String:
 		if step() == Step.ARRIVED and destination_id() == map:
 			return str((DESTINATIONS[map] as Dictionary)["receiver"])
 		return "exit:office"
+	if map == "lab":
+		return "qc_station" if step() == Step.VENDOR_CHOSEN and not qc_done() else "exit:office"
 	if not GameState.has_flag("intro_done"):
 		return ""
 	if GameState.task.is_empty():
@@ -280,7 +295,9 @@ func objective_target() -> String:
 	match step():
 		Step.ACCEPTED:
 			return "narajangteo_pc"
-		Step.VENDOR_CHOSEN, Step.ARRIVED:
+		Step.VENDOR_CHOSEN:
+			return "delivery_car" if qc_done() else "exit:lab"
+		Step.ARRIVED:
 			return "delivery_car"
 		Step.DELIVERED:
 			return "team_leader"
@@ -313,6 +330,20 @@ func cargo_damage_mult() -> float:
 	if bool(current_task().get("fragile", false)):
 		m *= 1.5
 	return m
+
+
+func qc_done() -> bool:
+	return bool(GameState.task.get("qc_done", false))
+
+
+## Vendor quality for the inspection at the destination (after the QC swap, if any).
+func delivered_quality() -> int:
+	var t := current_task()
+	var vi := int(GameState.task.get("vendor", -1))
+	if vi < 0:
+		return 0
+	var base: int = int(((t["vendors"] as Array)[vi] as Dictionary)["quality"])
+	return int(GameState.task.get("qc_quality", base))
 
 
 func is_urgent() -> bool:
@@ -379,6 +410,8 @@ func interact_object(id: String) -> void:
 			await Dialogue.say("", ["칠판에 '새 물품 도착하면 깨끗하게 쓰기!'라고 적혀 있어요."])
 		"med_cabinet":
 			await Dialogue.say("", ["약품장이 가지런히 정리돼 있어요."])
+		"qc_station":
+			await _use_qc_station()
 		_:
 			await Dialogue.say("", ["특별한 것은 없어요."])
 	_busy = false
@@ -620,8 +653,77 @@ func _use_pc() -> void:
 	GameState.set_task(GameState.task)
 	GameState.advance_clock(20)
 	_work_fatigue(SELECT_FATIGUE, false)  # a forced leave waits until this conversation ends
-	await Dialogue.say("", ["%s 계약했어요! 주차장의 납품 차량으로 가요." % Korean.wa(str(chosen["name"]))])
+	await Dialogue.say("", ["%s 계약했어요!" % Korean.wa(str(chosen["name"])), "납품 전에 1층 로비 왼쪽 품질검사실에서 물품을 검사해요."])
 	await _tip("vendor")
+
+
+## 품질검사실 검사대: conveyor minigame (QcGame), then the inspector's verdict (EventWindow).
+## Caught defects are swapped for good items, which raises the delivered quality.
+func _use_qc_station() -> void:
+	if step() != Step.VENDOR_CHOSEN:
+		await Dialogue.say("검사대", ["납품 전 품질 검사를 하는 검사대예요.", "업체와 계약하면 물품을 여기서 검사해요."])
+		return
+	if qc_done():
+		await Dialogue.say("검사대", ["검사를 마쳤어요. 이제 주차장 납품 차량으로 가요."])
+		return
+	var t := current_task()
+	var vi := int(GameState.task["vendor"])
+	var v: Dictionary = (t["vendors"] as Array)[vi]
+	var base := int(v["quality"])
+	var n := npc_name("inspector")
+	var c: int = await Dialogue.choose(n, "%s의 %s, 검사를 시작할까요?" % [v["name"], t["item"]], ["검사 시작", "나중에"])
+	if c != 0:
+		return
+	if not GameState.has_flag("qc_tutorial"):
+		GameState.set_flag("qc_tutorial")
+		var key := "A 버튼" if GameState.is_touch_device() else "Space"
+		await Dialogue.say(n, [
+			"컨베이어로 물품이 지나가요. 노란 검사 구역에 왔을 때 불량품이면 %s(또는 화면 터치)로 불합격!" % key,
+			"흠집, 얼룩, 금, 빠진 부분이 있으면 불량이에요. 멀쩡한 물건을 고르면 오판이에요.",
+			"찾아낸 불량품은 업체가 새 제품으로 바꿔 줘서 납품 품질이 올라가요.",
+		])
+	var defects := TaskData.qc_defects(base)
+	var qc := QcGame.new()
+	get_tree().root.add_child(qc)
+	var r: Dictionary = await qc.run({
+		"title": "품질 검사 - %s (%s)" % [t["item"], v["name"]],
+		"item": SPRITE_DIR + "product_%s.png" % str(t.get("kind", "device")), "kind": str(t.get("kind", "device")),
+		"items": TaskData.QC_ITEMS, "defects": defects,
+		"zone": "검사 구역", "reject": "불합격!",
+		"hint": "흠집·얼룩·금·빠진 부분이 있으면 불합격!",
+		"found": "찾은 불량 %d/%d", "wrong": "오판 %d", "left": "남은 물품 %d개",
+		"hit": "불량 발견!", "miss": "불량을 놓쳤어요", "false_alarm": "정상품이에요!", "go": "검사 시작!",
+	})
+	qc.queue_free()
+	var caught := int(r["caught"])
+	var wrong := int(r["wrong"])
+	var missed := int(r["missed"])
+	var final := TaskData.qc_quality(base, int(r["defects"]), caught)
+	GameState.task["qc_done"] = true
+	GameState.task["qc_quality"] = final
+	GameState.set_task(GameState.task)
+	GameState.advance_clock(30 + wrong * 5)
+	_work_fatigue(QC_FATIGUE, false)
+	var required := int(t["required"])
+	var result: Array = [["불량 %d개 중 %d개를 찾아 새 제품으로 바꿨어요." % [int(r["defects"]), caught], INK_TEXT],
+		["납품 품질 %d → %d점 (검수 기준 %d점)" % [base, final, required], INK_GOOD if final >= required else INK_BAD]]
+	if missed > 0:
+		result.append(["놓친 불량 %d개는 그대로 실려 가요." % missed, INK_BAD])
+	if wrong > 0:
+		result.append(["정상품 %d개를 잘못 골라 다시 확인했어요. (+%d분)" % [wrong, wrong * 5], INK_BAD])
+	var w := EventWindow.new()
+	get_tree().root.add_child(w)
+	await w.run({
+		"title": "%s의 검사 결과" % n, "bg": SPRITE_DIR + "event_lab.png", "mode": "inspect",
+		"npc": npc_sprite("inspector"), "item": SPRITE_DIR + "product_%s.png" % str(t.get("kind", "device")),
+		"defects": caught, "caption": "꼼꼼히 검사하는 중...", "bubbles": ["흠...", "여기를 보면...", "좋아요!"],
+		"stamp": "합격" if final >= required else "주의", "stamp_color": INK_GOOD if final >= required else Color("d07a10"),
+		"result": result, "ok": "확인했어요",
+	})
+	w.queue_free()
+	GameState.popup.emit("품질 %d → %d" % [base, final], UiTheme.COLOR_GOOD if final > base else UiTheme.COLOR_WARN)
+	await Dialogue.say(n, ["검사 끝! 이제 로비로 나가서 주차장 납품 차량으로 가요."])
+	await _tip("qc")
 
 
 ## Everything the 나라장터 monitor window shows (ProcurementPC.run).
@@ -670,6 +772,9 @@ func _use_car() -> void:
 	if step() != Step.VENDOR_CHOSEN and step() != Step.ARRIVED:
 		await Dialogue.say("", ["조달청 납품 차량이에요. 지금은 실을 물건이 없어요."])
 		return
+	if step() == Step.VENDOR_CHOSEN and not qc_done():
+		await Dialogue.say("", ["아직 납품 전 검사를 안 했어요.", "1층 로비 왼쪽 품질검사실 검사대에서 먼저 검사해요."])
+		return
 	var warn := ""
 	if bool(current_task().get("fragile", false)):
 		warn = " (파손 주의!)"
@@ -690,7 +795,8 @@ func _talk_receiver(id: String) -> void:
 		var v: Dictionary = vendors[int(GameState.task["vendor"])]
 		var cargo := int(GameState.task.get("cargo", 100))
 		var required := int(t["required"])
-		var score := float(v["quality"]) * cargo / 100.0
+		var quality := delivered_quality()
+		var score := float(quality) * cargo / 100.0
 		var g := TaskData.grade(score, required)
 		var reaction := str(info["good"])
 		if g == "보통":
@@ -700,7 +806,7 @@ func _talk_receiver(id: String) -> void:
 		await Dialogue.say(n, [
 			"조달청에서 오셨군요! %s 맞죠?" % t["item"],
 			"바로 검수해 볼게요...",
-			"검수 결과: [%s] %d점 (품질 %d x 화물 %d%%, 기준 %d점)" % [g, roundi(score), int(v["quality"]), cargo, required],
+			"검수 결과: [%s] %d점 (품질 %d x 화물 %d%%, 기준 %d점)" % [g, roundi(score), quality, cargo, required],
 			reaction,
 		])
 		GameState.task["grade"] = g
@@ -725,8 +831,17 @@ func _officer_request(n: String, info: Dictionary) -> void:
 		GameState.add_rewards(0, 4, 0)
 		GameState.log_add("rep", 4)
 		GameState.advance_clock(20)
+		var w := EventWindow.new()
+		get_tree().root.add_child(w)
+		await w.run({
+			"title": "일 돕기 - %s" % info["name"], "bg": SPRITE_DIR + "event_room.png", "mode": "carry",
+			"npc": npc_sprite(str(info["receiver"])), "prop": SPRITE_DIR + "box_carry.png",
+			"caption": "같이 나르는 중...", "bubbles": ["영차!", "으쌰!", "하나 더!"],
+			"result": [[str(info["thanks"]), INK_TEXT], ["평판 +4 / 피로 +%d" % HELP_FATIGUE, INK_GOOD]],
+			"ok": "별말씀을요!",
+		})
+		w.queue_free()
 		GameState.popup.emit("평판 +4", UiTheme.COLOR_GOOD)
-		await Dialogue.say(n, [str(info["thanks"])])
 	else:
 		await Dialogue.say(n, ["아유, 바쁘시죠. 괜찮아요!"])
 
@@ -761,6 +876,7 @@ func _report() -> void:
 	GameState.log_add("money", bonus)
 	GameState.popup.emit("예산 %+d만원" % saved, UiTheme.COLOR_GOOD if saved >= 0 else UiTheme.COLOR_BAD)
 	GameState.popup.emit("평판 %+d" % rep, UiTheme.COLOR_GOOD if rep >= 0 else UiTheme.COLOR_BAD)
+	GameState.popup.emit("경험치 +%d" % xp, UiTheme.COLOR_WARN)
 	GameState.tasks_done_today += 1
 	GameState.tasks_completed += 1
 	GameState.set_task({})
@@ -823,8 +939,8 @@ func _use_fridge() -> void:
 		return
 	GameState.fridge_day = GameState.day
 	GameState.add_item("energybar")
-	GameState.popup.emit("에너지바 +1", UiTheme.COLOR_GOOD)
-	await Dialogue.say("", ["냉장고에서 에너지바를 챙겼어요!", "운전 중에 Q(노란 버튼)로 먹으면 졸음이 사라져요."])
+	GameState.popup.emit("에너지 드링크 +1", UiTheme.COLOR_GOOD)
+	await Dialogue.say("", ["냉장고에서 에너지 드링크를 챙겼어요!", "운전 중에 Q(부스터 버튼)로 마시면 부스터가 돼요."])
 
 
 func _use_cooler() -> void:
@@ -872,6 +988,10 @@ func _task_info() -> void:
 	if vi >= 0:
 		var v: Dictionary = (t["vendors"] as Array)[vi]
 		lines.append("계약 업체: %s (%d만원, 품질 %d점)" % [v["name"], vendor_price(vi), int(v["quality"])])
+	if qc_done():
+		lines.append("품질 검사: 완료 (납품 품질 %d점)" % delivered_quality())
+	elif vi >= 0:
+		lines.append("품질 검사: 아직 (1층 로비 왼쪽 품질검사실)")
 	if step() >= Step.ARRIVED:
 		lines.append("화물 상태: %d%%" % int(GameState.task.get("cargo", 0)))
 	lines.append(objective_text())
@@ -992,7 +1112,7 @@ func _item_menu() -> void:
 			ids.append(id)
 			options.append("%s x%d" % [ItemDB.item_name(id), GameState.item_count(id)])
 	if ids.is_empty():
-		await Dialogue.say("가방", ["가진 아이템이 없어요. (지갑 %s원)" % Korean.comma(GameState.money), "커피와 에너지바는 구내식당 자판기에서 살 수 있어요. 밥은 식권 발매기에서 골라 바로 먹어요."])
+		await Dialogue.say("가방", ["가진 아이템이 없어요. (지갑 %s원)" % Korean.comma(GameState.money), "커피와 에너지 드링크는 구내식당 자판기에서 살 수 있어요. 밥은 식권 발매기에서 골라 바로 먹어요."])
 		return
 	options.append("닫기")
 	var c: int = await Dialogue.choose("가방", "무엇을 사용할까요? (피로도 %d / 지갑 %s원)" % [GameState.fatigue, Korean.comma(GameState.money)], options)

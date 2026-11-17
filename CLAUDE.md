@@ -55,7 +55,7 @@ godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
 #      소리를 바꾼 뒤: python tools/gen_audio.py -> 1) -> 2-2)
 godot --headless --path . --script res://tests/audio_check.gd
 
-# 2-3) 운전 난이도 확인 (반응 0.35초 봇 / 입력 없음 각 5판. 마지막 줄 DRIVE OK = 봇 평균 화물 85% 이상)
+# 2-3) 레이싱 코스 확인 (자동 운전으로 8개 코스 완주 60초 안·화물 60% 이상, 입력 없으면 제한 시간에 끝남. 마지막 줄 DRIVE OK)
 godot --headless --path . --fixed-fps 60 --script res://tests/drive_bot.gd
 
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
@@ -84,6 +84,8 @@ python3 -m http.server 8000 -d build/web   # Windows는 python
 웹 소리: 단일 스레드 웹은 소리를 Web Audio 샘플로 재생한다. 오디오 버스를 실행 중에 추가하면(`AudioServer.add_bus`)
 버스끼리 순환 연결되어 **모든 소리가 무음**이 된다. 버스는 Master 하나만 쓰고 볼륨은 플레이어의 `volume_db`로 조절한다.
 소리를 고친 뒤에는 웹 빌드를 브라우저에서 실제로 들어 본다(헤드리스 테스트는 소리를 재생하지 않는다).
+테스트 스크립트(`extends SceneTree`)에서 `RaceGame`·`QcGame`처럼 오토로드를 쓰는 클래스 이름을 직접 쓰면
+오토로드보다 먼저 컴파일되어 테스트가 시작조차 안 되고 멈춘다. `load(경로)`로 불러 `set()`으로 다룬다.
 웹에서는 `emulate_touch_from_mouse` 때문에 `DisplayServer.is_touchscreen_available()`이 항상 true다. 터치 판정은 `GameState.is_touch_device()`만 쓴다.
 
 ## 구조
@@ -104,7 +106,8 @@ scripts/systems/
   story.gd (autoload)    코어 루프, 수요기관(DESTINATIONS), NPC 대화, 자판기·구내식당, 메뉴, 인트로, 강제 퇴근
   korean.gd              조사(을/를, 이/가, 로/으로...), 천 단위 쉼표
   sprite_util.gd         스프라이트 시트 -> SpriteFrames
-scripts/data/task_data.gd  업무(조달 요청) 데이터, 검수 등급(요구 품질 기준), 시설 업그레이드
+scripts/data/task_data.gd  업무(조달 요청) 데이터, 검수 등급(요구 품질 기준), 품질 검사 공식(qc_*), 시설 업그레이드
+scripts/data/track_data.gd 레이싱 코스 8개(수요기관마다 2개, Catmull-Rom 곡선), 테마 색·장식
 scripts/world/
   map_base.gd            맵 공통: ASCII 레이아웃 -> 타일, NPC·오브젝트·간판(signs)·출구·플레이어·카메라·HUD·터치 UI 배치,
                          목표 화살표(Story.objective_target), HUD를 피하는 카메라, 작은 방은 2배 확대
@@ -116,18 +119,23 @@ scripts/world/
   maps/fire_map.gd       수요기관: 한빛소방서 (28x14)    │ 아래쪽 앞마당(꽃 잔디·납품 차량 arrival),
   maps/clinic_map.gd     수요기관: 한빛보건소 (28x14)    │ 맨 아래 출구 -> 청사 주차장
   maps/center_map.gd     수요기관: 한빛동 행정복지센터 (28x14) ┘
+  maps/lab_map.gd        품질검사실 (18x8, 2배 확대): 청사 로비 왼쪽 벽 문, 검사대(J)·컨베이어·서 검사관
 scripts/actors/          player.gd(4방향 이동·달리기·상호작용), npc.gd,
                          character_visual.gd(피부·옷 바탕·옷 색·얼굴·머리 5레이어, 색은 틴트)
 scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd,
-                         procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과)
-scripts/minigames/drive_game.gd  운전(운송) 미니게임: 항상 한 차선은 비워 두고, 화면 위 "!"로 예고, 부딪힌 장애물은 튕겨 나감
+                         procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과),
+                         event_window.gd(짧은 이벤트 장면 창: carry = 일 돕기, inspect = 검사관 결과)
+                         title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물, 지붕 위 타이틀 간판
+scripts/minigames/race_game.gd   납품 레이싱(scenes/minigames/drive.tscn): 자동 가속, ←→ 핸들, Shift 드리프트(게이지 -> 부스터),
+                                 Q 에너지 드링크 부스터, 경쟁 트럭 3대·순위 보너스, 미니맵, 터치 버튼. 진행도는 현재 위치 근처만 찾는다
+scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            갈무리 폰트 (OFL)
 assets/sprites/placeholder/  임시 도트 (tools/gen_placeholders.py로 생성)
 assets/audio/            임시 칩튠 BGM 3곡(bgm_home·town·drive, 루프)·효과음 21종 (tools/gen_audio.py로 합성, QOA 압축 임포트)
 tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)
 tests/audio_check.gd     소리 파일 임포트 확인 (BGM 루프, 효과음 존재)
-tests/drive_bot.gd       운전 난이도 확인 봇
+tests/drive_bot.gd       레이싱 8개 코스 자동 완주 확인
 tools/, docs/            Godot이 무시함(.gdignore)
 ```
 
@@ -141,9 +149,9 @@ tools/, docs/            Godot이 무시함(.gdignore)
 ### 코어 루프 (story.gd의 `Step`)
 
 `NONE` -팀장 대화(업무 배정, 긴급 판정)-> `ACCEPTED` -나라장터 PC에서 업체 선택(특가 판정)-> `VENDOR_CHOSEN`
--주차장 차량-> 운전 미니게임 -> `ARRIVED`(수요기관 앞마당 도착) -담당자(receiver)-> 검수 -> `DELIVERED`(추가 부탁 판정)
+-로비 왼쪽 품질검사실 검사대-> 품질 검사(`task.qc_done`, `qc_quality`) -주차장 차량-> 레이싱 -> `ARRIVED`(수요기관 앞마당 도착) -담당자(receiver)-> 검수 -> `DELIVERED`(추가 부탁 판정)
 -청사 복귀, 팀장 보고-> 보상(팀 예산 = 아낀 예산, 평판, 경험치, 성과급) -> `NONE`.
-검수 점수 = 업체 품질 × 화물 상태. 업무의 `required` 이상이면 보통, +15 이상이면 우수(`TaskData.grade`).
+검수 점수 = 납품 품질(업체 품질 + 품질 검사로 바꾼 불량품 몫, `Story.delivered_quality()`) × 화물 상태. 업무의 `required` 이상이면 보통, +15 이상이면 우수(`TaskData.grade`).
 팀 예산은 하단 바 [성장]에서 시설 업그레이드(`TaskData.UPGRADES`)에 쓴다.
 업체 선택은 `ProcurementPC`(모니터 창), 식사는 구내식당 식권 발매기 -> `MealWindow`(하루 `ItemDB.MEALS_PER_DAY`끼).
 두 창은 `Dialogue.set_overlay()`로 입력을 잠그고 터치 UI·하단 바를 숨긴다. 문구는 전부 Story가 넘긴다.
@@ -172,6 +180,5 @@ tools/, docs/            Godot이 무시함(.gdignore)
 - 터치 UI 여백이 고정값. `DisplayServer.get_display_safe_area()`로 노치 대응 필요 (P1).
 - 소리는 코드로 합성한 임시 칩튠이다. 진짜 음원으로 바꾸려면 같은 파일명으로 덮어쓴다(BGM은 .import의 loop_mode=2 유지).
   웹에서는 첫 터치 이후에만 재생된다(타이틀 화면의 첫 탭에서 시작, `Sound.unlocked`).
-- 품질 검사 미니게임 없음 (P1). 현재 검수는 숫자 계산만 한다.
 - P1 NPC(선배 주무관, 업체 사장님, 식당 이모)는 배치만 되어 있고 대사가 짧다.
 - 모바일 웹에서 이름 입력은 브라우저 `prompt()`로 처리한다. 실기에서 확인 필요.

@@ -240,6 +240,14 @@ func rank_name() -> String:
 	return RANKS[rank]
 
 
+## Progress inside the current rank for the HUD gauge: (exp earned in this rank,
+## exp this rank needs). (0, 0) at the top rank.
+func rank_progress() -> Vector2i:
+	if rank + 1 >= RANKS.size():
+		return Vector2i.ZERO
+	return Vector2i(experience - RANK_EXP[rank], RANK_EXP[rank + 1] - RANK_EXP[rank])
+
+
 ## Experience needed for the next rank, or -1 at the top rank.
 func next_rank_exp() -> int:
 	return RANK_EXP[rank + 1] if rank + 1 < RANKS.size() else -1

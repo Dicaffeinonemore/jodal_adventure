@@ -10,6 +10,7 @@ const SCHOOL := "res://scenes/maps/school.tscn"
 const FIRE := "res://scenes/maps/fire.tscn"
 const CLINIC := "res://scenes/maps/clinic.tscn"
 const CENTER := "res://scenes/maps/center.tscn"
+const LAB := "res://scenes/maps/lab.tscn"
 const DRIVE := "res://scenes/minigames/drive.tscn"
 
 ## Map id (used in task data and Story.DESTINATIONS) -> scene path.
@@ -20,6 +21,7 @@ const MAPS := {
 	"fire": FIRE,
 	"clinic": CLINIC,
 	"center": CENTER,
+	"lab": LAB,
 }
 
 var next_spawn := ""

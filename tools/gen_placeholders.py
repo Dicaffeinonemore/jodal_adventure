@@ -529,6 +529,7 @@ def make_npcs():
     human_npc("officer_center", outfit(top="vest"), (110, 132, 104), (50, 40, 36), 1, 0)
     human_npc("citizen", outfit(top="jumper", tie=None, pants=((110, 100, 90, 255), (86, 78, 70, 255))),
               (156, 112, 80), (214, 214, 220), 0, 0, glasses, skin=(240, 204, 170))
+    human_npc("inspector", outfit(tie=(70, 120, 200, 255)), (250, 250, 252), (60, 50, 46), 1, 0, glasses)
 
 
 # ------------------------------------------------------------------ tiles
@@ -542,6 +543,8 @@ TILES = [
     "grass_flower", "path", "hedge", "facade_school", "facade_fire", "garage_door", "facade_clinic",
     "facade_center", "glass_door", "tile_white", "hospital_bed", "locker", "med_cabinet", "garage_floor",
     "kiosk", "flower_bed", "chalkboard",
+    # 11/17 품질검사실
+    "conveyor", "qc_station",
 ]
 
 # Outdoor palette: bright and saturated, dark outlines (the cozy look of the reference video).
@@ -869,6 +872,24 @@ def make_tiles():
             for (a, b, c) in ((3, 3, (255, 140, 170, 255)), (8, 2, (255, 230, 90, 255)), (12, 4, (255, 255, 255, 255)),
                               (6, 6, (255, 120, 110, 255))):
                 fill(img, x + a, b, x + a + 1, b + 1, c)
+        elif name == "conveyor":
+            tile_floor(img, x, WHITE_TILE, (218, 226, 234, 255))
+            fill(img, x, 3, x + 15, 12, (70, 74, 88, 255))
+            for xx in range(0, 16, 4):
+                fill(img, x + xx, 4, x + xx + 1, 11, (96, 100, 116, 255))
+            fill(img, x, 3, x + 15, 3, (150, 156, 170, 255))
+            fill(img, x, 12, x + 15, 13, (120, 126, 140, 255))
+            fill(img, x, 14, x + 15, 14, OUTLINE)
+        elif name == "qc_station":
+            tile_floor(img, x, WHITE_TILE, (218, 226, 234, 255))
+            fill(img, x, 2, x + 15, 13, (226, 230, 236, 255))
+            fill(img, x, 2, x + 15, 3, (250, 250, 252, 255))
+            fill(img, x + 2, 5, x + 7, 10, (130, 200, 250, 255))  # screen
+            fill(img, x + 3, 6, x + 4, 6, (230, 246, 255, 255))
+            fill(img, x + 10, 1, x + 10, 6, OUTLINE)  # lamp arm
+            fill(img, x + 9, 6, x + 13, 7, (250, 210, 80, 255))
+            fill(img, x + 10, 9, x + 13, 11, (90, 200, 120, 255))  # pass button
+            fill(img, x, 14, x + 15, 15, (150, 156, 170, 255))
         elif name == "chalkboard":
             tile_wall(img, x)
             fill(img, x + 1, 3, x + 14, 12, (150, 104, 66, 255))
@@ -1065,6 +1086,219 @@ def make_meal_scene():
     spoon.save(OUT / "spoon.png")
 
 
+def _save_outlined(img, name):
+    outline(img)
+    img.save(OUT / name)
+
+
+def make_products():
+    """Goods on the inspection conveyor (24x24, drawn at 3x). Defects are drawn by the game."""
+    def furniture(d, im):  # desk / shelf / chair: wooden top and legs
+        d.rectangle([2, 6, 21, 11], fill=(200, 146, 92, 255))
+        fill(im, 2, 6, 21, 7, (226, 176, 120, 255))
+        fill(im, 3, 12, 5, 21, (150, 100, 62, 255))
+        fill(im, 18, 12, 20, 21, (150, 100, 62, 255))
+        fill(im, 6, 12, 17, 13, (170, 116, 72, 255))
+
+    def device(d, im):  # projector / purifier / thermometer box: casing, lens, buttons
+        d.rounded_rectangle([1, 5, 22, 19], 3, fill=(236, 238, 244, 255))
+        fill(im, 2, 6, 21, 7, (252, 252, 255, 255))
+        d.ellipse([4, 8, 11, 15], fill=(60, 66, 84, 255))
+        d.ellipse([6, 10, 9, 13], fill=(130, 200, 250, 255))
+        fill(im, 14, 9, 19, 10, (90, 200, 120, 255))
+        fill(im, 14, 13, 19, 14, (240, 120, 90, 255))
+        fill(im, 2, 17, 21, 18, (200, 204, 214, 255))
+
+    def soft(d, im):  # folded mat / fire suit: fabric with seams
+        d.rounded_rectangle([2, 4, 21, 20], 2, fill=(110, 150, 220, 255))
+        fill(im, 2, 11, 21, 12, (86, 120, 190, 255))
+        for xx in (6, 12, 18):
+            fill(im, xx, 5, xx, 19, (140, 176, 236, 255))
+        fill(im, 3, 5, 20, 5, (150, 186, 240, 255))
+
+    def metal(d, im):  # tray / wheelchair parts / hose reel: steel
+        d.rounded_rectangle([1, 6, 22, 17], 3, fill=(196, 202, 212, 255))
+        d.rounded_rectangle([4, 8, 19, 15], 2, fill=(170, 178, 190, 255))
+        fill(im, 2, 7, 21, 7, (232, 236, 242, 255))
+        fill(im, 6, 10, 10, 10, (226, 230, 238, 255))
+
+    for name, fn in (("furniture", furniture), ("device", device), ("soft", soft), ("metal", metal)):
+        img = Image.new("RGBA", (24, 24), T)
+        fn(ImageDraw.Draw(img), img)
+        _save_outlined(img, f"product_{name}.png")
+
+    mag = Image.new("RGBA", (14, 14), T)
+    d = ImageDraw.Draw(mag)
+    d.ellipse([0, 0, 9, 9], outline=(60, 60, 70, 255), width=2)
+    d.ellipse([2, 2, 7, 7], fill=(200, 236, 255, 160))
+    d.line([(8, 8), (13, 13)], fill=(150, 100, 60, 255), width=2)
+    mag.save(OUT / "magnifier.png")
+
+    box = Image.new("RGBA", (12, 10), T)
+    fill(box, 0, 1, 11, 9, (210, 160, 100, 255))
+    fill(box, 0, 1, 11, 2, (236, 190, 130, 255))
+    fill(box, 5, 1, 6, 9, (180, 130, 80, 255))
+    _save_outlined(box, "box_carry.png")
+
+
+def _room_bg(wall, floor, name, extra):
+    W, H = 160, 90
+    bg = Image.new("RGBA", (W, H), wall)
+    d = ImageDraw.Draw(bg)
+    fill(bg, 0, 66, W - 1, H - 1, floor)
+    fill(bg, 0, 66, W - 1, 67, shade(floor, 0.8))
+    for xx in range(0, W, 16):
+        fill(bg, xx, 68, xx, H - 1, shade(floor, 0.9))
+    extra(bg, d)
+    bg.save(OUT / name)
+
+
+def make_event_scenes():
+    """Backgrounds for EventWindow: the inspection lab and a storage room."""
+    def lab(bg, d):
+        d.rectangle([10, 8, 50, 34], fill=(246, 246, 250, 255), outline=OUTLINE)  # window
+        fill(bg, 13, 11, 47, 31, (170, 220, 250, 255))
+        for i, xx in enumerate((104, 120, 136)):  # shelf with sample boxes
+            d.rectangle([xx, 14, xx + 12, 26], fill=((120, 170, 230, 255), (240, 200, 90, 255), (140, 200, 140, 255))[i],
+                        outline=OUTLINE)
+        fill(bg, 98, 27, 154, 29, (150, 104, 66, 255))
+        d.rectangle([56, 8, 92, 30], fill=(52, 104, 78, 255), outline=OUTLINE)  # results board
+        for yy in (13, 18, 23):
+            fill(bg, 60, yy, 80, yy, (236, 236, 220, 255))
+            fill(bg, 84, yy, 88, yy, (120, 220, 120, 255))
+        d.rectangle([24, 56, 136, 74], fill=(226, 230, 236, 255), outline=OUTLINE)  # inspection table
+        fill(bg, 25, 57, 135, 58, (250, 250, 252, 255))
+        fill(bg, 30, 75, 33, 89, (150, 156, 170, 255))
+        fill(bg, 127, 75, 130, 89, (150, 156, 170, 255))
+
+    def room(bg, d):
+        for sx in (8, 112):  # shelves
+            d.rectangle([sx, 16, sx + 40, 64], fill=(170, 116, 72, 255), outline=OUTLINE)
+            for yy in (30, 46):
+                fill(bg, sx + 1, yy, sx + 39, yy + 1, (130, 86, 52, 255))
+            for k in range(3):
+                d.rectangle([sx + 4 + k * 12, 20, sx + 13 + k * 12, 29], fill=(210, 160, 100, 255), outline=OUTLINE)
+        d.rectangle([64, 10, 96, 30], fill=(246, 246, 250, 255), outline=OUTLINE)
+        fill(bg, 67, 13, 93, 27, (170, 220, 250, 255))
+
+    _room_bg((236, 240, 246, 255), (196, 202, 214, 255), "event_lab.png", lab)
+    _room_bg((250, 236, 206, 255), (196, 150, 102, 255), "event_room.png", room)
+
+
+def make_title():
+    """Title screen town (320x180, shown at 2x): destinations on both sides, 조달청 in the middle."""
+    W, H = 320, 180
+    img = Image.new("RGBA", (W, H), T)
+    d = ImageDraw.Draw(img)
+    for y in range(0, 140):  # sky gradient
+        t = y / 140
+        c = (int(120 + 90 * t), int(190 + 40 * t), int(250 - 10 * t), 255)
+        fill(img, 0, y, W - 1, y, c)
+    for i, (cx, r) in enumerate(((20, 30), (90, 24), (170, 34), (250, 26), (310, 30))):  # far hills
+        d.ellipse([cx - r * 2, 104 - r // 2, cx + r * 2, 140 + r], fill=(120, 190, 120, 255))
+    fill(img, 0, 140, W - 1, 151, (214, 206, 190, 255))  # sidewalk
+    for xx in range(0, W, 8):
+        fill(img, xx, 140, xx, 151, (196, 188, 172, 255))
+    fill(img, 0, 140, W - 1, 140, OUTLINE)
+    fill(img, 0, 152, W - 1, H - 1, (84, 86, 98, 255))  # road
+    fill(img, 0, 152, W - 1, 152, (230, 230, 230, 255))
+    for xx in range(4, W, 20):
+        fill(img, xx, 165, xx + 9, 166, (240, 210, 90, 255))
+
+    def windows(x0, y0, x1, y1, cols, rows, frame=(246, 246, 250, 255)):
+        cw = (x1 - x0) // cols
+        rh = (y1 - y0) // rows
+        for cx in range(cols):
+            for ry in range(rows):
+                wx, wy = x0 + cx * cw + 2, y0 + ry * rh + 2
+                d.rectangle([wx, wy, wx + cw - 5, wy + rh - 5], fill=frame, outline=OUTLINE)
+                fill(img, wx + 1, wy + 1, wx + cw - 6, wy + rh - 6, (150, 206, 246, 255))
+
+    def tree(x, y, c=(80, 160, 76, 255)):
+        fill(img, x - 1, y, x + 1, y + 10, (130, 86, 52, 255))
+        d.ellipse([x - 8, y - 12, x + 8, y + 4], fill=c, outline=OUTLINE)
+        d.ellipse([x - 5, y - 10, x, y - 5], fill=shade(c, 1.25))
+
+    # school (left)
+    d.rectangle([6, 96, 58, 140], fill=(236, 210, 164, 255), outline=OUTLINE)
+    d.polygon([(4, 96), (32, 82), (60, 96)], fill=(176, 92, 70, 255), outline=OUTLINE)
+    d.ellipse([27, 86, 37, 96], fill=(250, 250, 250, 255), outline=OUTLINE)
+    fill(img, 32, 88, 32, 91, OUTLINE)
+    fill(img, 32, 91, 34, 91, OUTLINE)
+    windows(9, 100, 56, 126, 4, 2)
+    d.rectangle([26, 128, 38, 140], fill=(150, 206, 246, 255), outline=OUTLINE)
+    # fire station
+    d.rectangle([62, 104, 104, 140], fill=(200, 74, 62, 255), outline=OUTLINE)
+    fill(img, 62, 104, 104, 107, (246, 246, 246, 255))
+    for gx in (66, 86):
+        d.rectangle([gx, 118, gx + 15, 140], fill=(226, 72, 60, 255), outline=OUTLINE)
+        for yy in range(121, 140, 4):
+            fill(img, gx + 1, yy, gx + 14, yy, (166, 46, 40, 255))
+    windows(66, 108, 102, 117, 3, 1)
+    # 조달청 (center): wide government building, columns, flag
+    d.rectangle([106, 60, 214, 140], fill=(232, 228, 216, 255), outline=OUTLINE)
+    d.rectangle([100, 54, 220, 62], fill=(196, 190, 176, 255), outline=OUTLINE)
+    windows(112, 66, 208, 98, 6, 2)
+    d.rectangle([128, 99, 192, 109], fill=(36, 72, 154, 255), outline=OUTLINE)  # sign plate (label on top)
+    for cx in range(118, 206, 14):  # columns at the entrance
+        d.rectangle([cx, 112, cx + 5, 140], fill=(250, 248, 240, 255), outline=OUTLINE)
+    d.rectangle([150, 118, 170, 140], fill=(150, 206, 246, 255), outline=OUTLINE)
+    fill(img, 160, 118, 160, 140, OUTLINE)
+    fill(img, 159, 30, 160, 54, OUTLINE)  # flagpole + flag
+    d.rectangle([161, 30, 177, 40], fill=(255, 255, 255, 255), outline=OUTLINE)
+    d.ellipse([165, 31, 173, 39], fill=(214, 60, 70, 255))
+    d.pieslice([165, 31, 173, 39], 0, 180, fill=(40, 80, 170, 255))
+    # clinic
+    d.rectangle([218, 100, 260, 140], fill=(244, 246, 250, 255), outline=OUTLINE)
+    fill(img, 218, 100, 260, 103, (96, 184, 146, 255))
+    d.rectangle([233, 106, 245, 118], fill=(250, 250, 250, 255), outline=OUTLINE)
+    fill(img, 237, 108, 241, 116, (80, 180, 120, 255))
+    fill(img, 235, 110, 243, 114, (80, 180, 120, 255))
+    windows(221, 120, 258, 131, 3, 1)
+    # community center
+    d.rectangle([264, 94, 314, 140], fill=(214, 206, 188, 255), outline=OUTLINE)
+    fill(img, 264, 94, 314, 98, (110, 132, 170, 255))
+    windows(267, 100, 312, 126, 4, 2)
+    d.rectangle([282, 128, 296, 140], fill=(150, 206, 246, 255), outline=OUTLINE)
+    for x in (2, 60, 108, 212, 262, 318):  # trees and flowers on the sidewalk
+        tree(x, 134)
+    for x in range(4, W, 11):
+        px(img, x, 146, (255, 150, 176, 255))
+        px(img, x + 5, 148, (255, 230, 90, 255))
+    img.save(OUT / "title_town.png")
+
+    cloud = Image.new("RGBA", (28, 12), T)
+    dc = ImageDraw.Draw(cloud)
+    for (a, b, c, e) in ((0, 4, 12, 11), (7, 0, 20, 11), (15, 3, 27, 11)):
+        dc.ellipse([a, b, c, e], fill=(255, 255, 255, 255))
+    cloud.save(OUT / "cloud.png")
+
+
+def make_race():
+    """Racing minigame extras: a tintable rival truck, a box obstacle, a drink pickup."""
+    rival = Image.new("RGBA", (18, 30), T)
+    fill(rival, 2, 1, 15, 28, (250, 250, 250, 255))
+    fill(rival, 2, 1, 15, 2, (255, 255, 255, 255))
+    fill(rival, 4, 3, 13, 8, (190, 228, 252, 255))
+    fill(rival, 3, 11, 14, 27, (226, 226, 232, 255))
+    fill(rival, 6, 15, 11, 19, (200, 200, 208, 255))
+    for y in (5, 22):
+        fill(rival, 0, y, 1, y + 3, (40, 40, 48, 255))
+        fill(rival, 16, y, 17, y + 3, (40, 40, 48, 255))
+    _save_outlined(rival, "car_rival.png")
+    crate = Image.new("RGBA", (14, 14), T)
+    fill(crate, 1, 1, 12, 12, (200, 150, 92, 255))
+    fill(crate, 1, 1, 12, 2, (230, 184, 126, 255))
+    fill(crate, 6, 1, 7, 12, (170, 120, 70, 255))
+    fill(crate, 1, 6, 12, 7, (170, 120, 70, 255))
+    _save_outlined(crate, "race_crate.png")
+    can = Image.new("RGBA", (10, 14), T)
+    fill(can, 1, 1, 8, 12, (60, 170, 230, 255))
+    fill(can, 1, 1, 8, 2, (200, 210, 220, 255))
+    fill(can, 3, 5, 6, 8, (250, 230, 80, 255))
+    _save_outlined(can, "pickup_drink.png")
+
+
 def make_icons():
     def icon(name, fn):
         img = Image.new("RGBA", (16, 16), T)
@@ -1081,8 +1315,9 @@ def make_icons():
                                          fill(im, 3, 6, 6, 9, (252, 250, 240, 255)),
                                          fill(im, 8, 6, 12, 9, (234, 124, 64, 255)),
                                          fill(im, 3, 10, 12, 11, (112, 176, 92, 255))))
-    icon("item_energybar.png", lambda im, d: (fill(im, 2, 6, 13, 10, (244, 204, 64, 255)),
-                                              fill(im, 5, 7, 10, 9, (206, 84, 52, 255))))
+    icon("item_energybar.png", lambda im, d: (fill(im, 4, 2, 11, 14, (60, 170, 230, 255)),  # energy drink can
+                                              fill(im, 4, 2, 11, 3, (210, 216, 226, 255)),
+                                              fill(im, 6, 6, 9, 10, (250, 230, 80, 255))))
 
 
 def circle_button(name, size, label_col):
@@ -1154,6 +1389,10 @@ if __name__ == "__main__":
     make_drive()
     make_vehicles()
     make_meal_scene()
+    make_products()
+    make_event_scenes()
+    make_title()
+    make_race()
     make_icons()
     make_touch_ui()
     if len(sys.argv) > 1:

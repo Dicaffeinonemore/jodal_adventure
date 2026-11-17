@@ -29,8 +29,8 @@ const ITEMS := {
 		"coffee": false, "meal_bonus": true, "drive": false, "tier": "P1",
 	},
 	"energybar": {
-		"name": "에너지바", "price": 2000, "fatigue": 10, "icon": "item_energybar.png",
-		"desc": "운전 중에도 한 입에 먹을 수 있다.",
+		"name": "에너지 드링크", "price": 2000, "fatigue": 10, "icon": "item_energybar.png",
+		"desc": "운전 중 Q로 마시면 부스터!",
 		"coffee": false, "meal_bonus": false, "drive": true, "tier": "P1",
 	},
 }

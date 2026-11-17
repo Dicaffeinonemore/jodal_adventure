@@ -15,6 +15,8 @@ const PC := Vector2i(13, 7)
 const CAR := Vector2i(31, 20)
 const TICKET := Vector2i(36, 3)  # below the cafeteria ticket machine
 const PLACES := ["school", "fire", "clinic", "center"]
+const RACE_SCRIPT := "res://scripts/minigames/race_game.gd"
+const QC_SCRIPT := "res://scripts/minigames/qc_game.gd"
 
 var _failed := false
 var _step := ""
@@ -36,11 +38,16 @@ func _run() -> void:
 	await _frames(5)
 	var gs := _a("GameState")
 	(gs.get("rng") as RandomNumberGenerator).seed = _seed
+	# Loaded at run time: naming these classes here would compile them before the
+	# autoloads (GameState...) exist, and the test would not start at all.
+	load(RACE_SCRIPT).set("autopilot", true)  # the race drives itself (steering: tests/drive_bot.gd)
+	load(QC_SCRIPT).set("autoplay", true)  # the inspection rejects exactly the defective goods
 
 	# ---- title -> character create -> home (alarm intro)
 	_step = "title"
 	change_scene_to_file("res://scenes/title/title.tscn")
 	await _frames(10)
+	await _shot("00_title", 30)
 	_tap(Vector2(320, 180))
 	await _frames(5)
 	_check(current_scene.get("_started") == true, "title did not react to a tap")
@@ -105,7 +112,8 @@ func _run() -> void:
 
 	if not _failed:
 		_step = "evening"
-		await _until(func() -> bool: return _map() == "home" and bool(gs.get("day_over")), "never got home in the evening")
+		await _until(func() -> bool: return _map() == "home" and bool(gs.get("day_over")),
+				"never got home in the evening (map %s, day_over %s, day %d)" % [_map(), str(gs.get("day_over")), int(gs.get("day"))])
 		await _drain_dialogue()
 		await _walk_out(Vector2i(8, 6), false)
 		_check(_map() == "home", "could leave home after the day was over")
@@ -141,10 +149,11 @@ func _run() -> void:
 		gs.set("meals_today", 0)
 		var money := int(gs.get("money"))
 		await _walk_and_interact(TICKET, "up")
-		await _drain_dialogue([0])  # 든든 국밥
+		await _drain_dialogue([0], true)  # 든든 국밥
 		var dlg := _a("Dialogue")
 		await _until(func() -> bool: return bool(dlg.get("overlay_open")), "meal window never opened")
-		await _shot("12_meal_eating", 70)
+		await _frames(70)  # the window ignores skips for its first moment
+		await _shot("12_meal_eating", 0)
 		_press("interact")  # skip to the result
 		await _shot("13_meal_result", 20)
 		_press("interact")  # close
@@ -224,6 +233,44 @@ func _one_task(i: int) -> void:
 	await _drain_dialogue()
 	_check(int(story.call("step")) == 2, "vendor not chosen")
 	_check(int((gs.get("task") as Dictionary)["vendor"]) == 0, "PC picked the wrong vendor")
+	if bool(gs.get("day_over")):  # the work fatigue of choosing hit the limit
+		await _forced_leave(i)
+		return
+
+	_step = "task %d: inspection lab" % (i + 1)
+	await _walk_into(Vector2i(1, 16), "move_left")
+	_check(_map() == "lab", "lobby door did not lead to the inspection lab")
+	await _walk_and_interact(Vector2i(8, 4), "up")
+	var qc_shot := i == 0
+	var result_shot := false
+	for k in 3000:
+		if bool((gs.get("task") as Dictionary).get("qc_done", false)) and not _a("Dialogue").get("overlay_open"):
+			break
+		var dlg2 := _a("Dialogue")
+		if dlg2.get("is_open"):
+			var ch: Control = dlg2.get("_choices")
+			if ch.visible and ch.get_child_count() > 0:
+				dlg2.call("_on_choice", 0)
+			else:
+				_press("interact")
+		elif dlg2.get("overlay_open") and not _qc_running():
+			if i == 0 and not result_shot:
+				result_shot = true
+				await _shot("04d_qc_result", 150)
+			_press("interact")
+		elif qc_shot and _qc_running():
+			qc_shot = false
+			await _shot("04c_qc_game", 150)
+		await _frames(2)
+	await _drain_dialogue()
+	_check(bool((gs.get("task") as Dictionary).get("qc_done", false)), "inspection not done")
+	if bool(gs.get("day_over")):  # the inspection's fatigue hit the limit
+		await _forced_leave(i)
+		return
+	var t0: Dictionary = gs.get("task")
+	print("  task %d inspection: quality -> %d" % [i + 1, int(t0.get("qc_quality", -1))])
+	await _walk_out(Vector2i(8, 6))
+	_check(_map() == "office", "lab door did not lead back to the lobby")
 
 	_step = "task %d: car" % (i + 1)
 	await _walk_and_interact(CAR, "up")
@@ -236,7 +283,7 @@ func _one_task(i: int) -> void:
 	if i == 0:
 		await _shot("05_drive", 60 * 8)
 	await _until(func() -> bool: return current_scene != null and current_scene.get("map_size_px") != null \
-			and not _a("SceneRouter").get("busy"), "drive never finished", 60 * 40)
+			and not _a("SceneRouter").get("busy"), "drive never finished", 60 * 90)
 	_check(int(story.call("step")) == 3, "not ARRIVED after drive")
 	var t: Dictionary = gs.get("task")
 	print("  task %d (#%d urgent=%s sale=%d) cargo=%d stars=%d fatigue=%d" % [
@@ -259,19 +306,7 @@ func _one_task(i: int) -> void:
 	await _walk_out(_exit_spot())
 	await _frames(5)
 	if _a("Dialogue").get("is_open") or bool(gs.get("day_over")):
-		# forced leave: Narumi talks, then the evening summary at home
-		for k in 900:
-			if _map() == "home" and _a("Dialogue").get("is_open"):
-				break
-			if _a("Dialogue").get("is_open"):
-				_press("interact")
-			await _frames(3)
-		await _frames(20)
-		_press("interact")
-		await _shot("09_evening_summary", 60)
-		await _drain_dialogue()
-		await _wait_router()
-		print("  forced leave after task %d (fatigue limit)" % (i + 1))
+		await _forced_leave(i)
 		return
 
 	_step = "task %d: report" % (i + 1)
@@ -321,9 +356,11 @@ func _wait_router() -> void:
 	await _frames(3)
 
 
-## Advances every line until no dialogue is open for 30 frames. Choices take the
-## next index from `picks`, then 0.
-func _drain_dialogue(picks: Array = []) -> void:
+## Advances every line until no dialogue or window is open for 30 frames. Choices take
+## the next index from `picks`, then 0. Event windows (help, inspection result) are
+## advanced too; the inspection minigame plays itself. stop_on_overlay: return as soon
+## as a window opens (to look at it).
+func _drain_dialogue(picks: Array = [], stop_on_overlay: bool = false) -> void:
 	var queue := picks.duplicate()
 	var quiet := 0
 	var guard := 0
@@ -340,9 +377,49 @@ func _drain_dialogue(picks: Array = []) -> void:
 				dlg.call("_on_choice", int(queue.pop_front()) if not queue.is_empty() else 0)
 			else:
 				_press("interact")
+		elif dlg.get("overlay_open"):
+			if stop_on_overlay:
+				return
+			quiet = 0
+			if not _qc_running():
+				_press("interact")
 		elif not _a("SceneRouter").get("busy"):
 			quiet += 1
 		await _frames(2)
+
+
+## Fatigue hit 100: Narumi sends the player home, then the evening summary.
+func _forced_leave(i: int) -> void:
+	for k in 900:
+		if _map() == "home" and _a("Dialogue").get("is_open"):
+			break
+		if _a("Dialogue").get("is_open"):
+			_press("interact")
+		await _frames(3)
+	await _frames(20)
+	_press("interact")
+	await _shot("09_evening_summary", 60)
+	await _drain_dialogue()
+	await _wait_router()
+	print("  forced leave during task %d (fatigue limit)" % (i + 1))
+
+
+func _qc_running() -> bool:
+	var qc_script := load(QC_SCRIPT)
+	for n: Node in root.get_children():
+		if n.get_script() == qc_script:
+			return true
+	return false
+
+
+## Stands on `cell` and holds `action` until a scene change starts.
+func _walk_into(cell: Vector2i, action: String) -> void:
+	var p := current_scene.get("player") as Node2D
+	p.position = Vector2(cell.x * 16 + 8, cell.y * 16 + 8)
+	Input.action_press(action)
+	await _until(func() -> bool: return _a("SceneRouter").get("busy") == true, "exit never triggered", 120)
+	Input.action_release(action)
+	await _wait_router()
 
 
 ## Holds a move action (and "run") for some frames; returns the distance moved.
