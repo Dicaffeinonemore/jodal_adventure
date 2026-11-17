@@ -84,9 +84,10 @@ const THEMES := {
 			"colors": [Color("f0f4f8"), Color("e8eef8"), Color("f8f0e4")]},
 }
 
-## Seconds to reach the building: a little slack over a clean run at cruising speed.
-const SECONDS_PER_PX := 1.0 / 175.0
-const TIME_SLACK := 4.0
+## Seconds to reach the building: plenty of slack over a clean run at cruising speed
+## (11/17: raised from 1/175 + 4 s, a clean run takes about 20-25 s).
+const SECONDS_PER_PX := 1.0 / 150.0
+const TIME_SLACK := 10.0
 
 
 static func count() -> int:
