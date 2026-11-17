@@ -1,8 +1,9 @@
 class_name TaskData
 ## Procurement tasks (the core loop content) and facility upgrades.
 ## The first task is always TASKS[0] (tutorial); after that a random task is
-## picked, never the same one twice in a row. "destination" is a key of
-## Story.DESTINATIONS (school, fire, clinic, center) with a map in SceneRouter.MAPS.
+## picked: first a destination (never the previous one, so every place comes up),
+## then one of its tasks (pick_index). "destination" is a key of Story.DESTINATIONS
+## (school, fire, clinic, center, nursing, police, hospital) with a map in SceneRouter.MAPS.
 ##
 ## Money: "budget" and vendor "price" are in 만원. The unspent budget goes to the
 ## team budget, which buys upgrades.
@@ -269,6 +270,200 @@ const TASKS := [
 		],
 		"exp": 50,
 	},
+	# ---- 한빛시립요양원
+	{
+		"id": "nursing_beds",
+		"kind": "furniture",
+		"destination": "nursing",
+		"item": "전동 침대 10대",
+		"budget": 900,
+		"required": 70,
+		"fragile": false,
+		"brief": [
+			"한빛시립요양원에서 어르신용 전동 침대 10대를 요청했어요.",
+			"매일 쓰시는 침대라 검수 기준이 품질 70점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "편안잠", "price": 880, "quality": 94, "desc": "병원 침대도 만드는 업체. 비싸다."},
+			{"name": "늘봄가구", "price": 720, "quality": 82, "desc": "요양시설 납품 경험이 많은 중소기업."},
+			{"name": "대충침대", "price": 560, "quality": 58, "desc": "가장 싸지만 모터 고장 이야기가 있다."},
+		],
+		"exp": 55,
+	},
+	{
+		"id": "nursing_mats",
+		"kind": "soft",
+		"destination": "nursing",
+		"item": "미끄럼 방지 매트 50장",
+		"budget": 250,
+		"required": 50,
+		"fragile": false,
+		"brief": [
+			"요양원 복도와 욕실에 깔 미끄럼 방지 매트 50장 요청이에요.",
+			"기준은 품질 50점이에요. 너무 비싼 걸 살 필요는 없겠죠?",
+		],
+		"vendors": [
+			{"name": "안심바닥", "price": 240, "quality": 90, "desc": "병원 바닥재 전문 업체."},
+			{"name": "폭신매트", "price": 180, "quality": 72, "desc": "무난한 품질의 중견기업."},
+			{"name": "얇은매트", "price": 130, "quality": 56, "desc": "가장 싸지만 얇다는 평이 있다."},
+		],
+		"exp": 40,
+	},
+	{
+		"id": "nursing_chairs",
+		"kind": "furniture",
+		"destination": "nursing",
+		"item": "식당 의자 30개",
+		"budget": 400,
+		"required": 55,
+		"fragile": false,
+		"brief": [
+			"요양원 식당에서 쓸 의자 30개가 필요하대요.",
+			"팔걸이가 튼튼해야 해요. 검수 기준은 품질 55점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "튼튼원목", "price": 380, "quality": 90, "desc": "원목 가구 전문 업체."},
+			{"name": "다정가구", "price": 300, "quality": 74, "desc": "복지시설 가구를 주로 만드는 업체."},
+			{"name": "삐걱의자", "price": 220, "quality": 50, "desc": "싸지만 다리가 흔들린다는 소문."},
+		],
+		"exp": 45,
+	},
+	# ---- 한빛경찰서
+	{
+		"id": "police_vests",
+		"kind": "soft",
+		"destination": "police",
+		"item": "방검복 30벌",
+		"budget": 900,
+		"required": 75,
+		"fragile": false,
+		"brief": [
+			"한빛경찰서에서 방검복 30벌을 요청했어요.",
+			"경찰관 안전이 걸린 장비라 검수 기준이 품질 75점으로 높아요.",
+		],
+		"vendors": [
+			{"name": "철벽방호", "price": 880, "quality": 96, "desc": "보호 장비만 만드는 업체. 아주 비싸다."},
+			{"name": "든든안전", "price": 740, "quality": 86, "desc": "공공기관 납품 실적이 꾸준한 업체."},
+			{"name": "얇은조끼", "price": 560, "quality": 62, "desc": "가장 싸지만 시험 점수가 낮다."},
+		],
+		"exp": 60,
+	},
+	{
+		"id": "police_cameras",
+		"kind": "device",
+		"destination": "police",
+		"item": "순찰차 블랙박스 20대",
+		"budget": 400,
+		"required": 65,
+		"fragile": true,
+		"brief": [
+			"순찰차에 달 블랙박스 20대 요청이에요.",
+			"전자기기라 파손 주의, 검수 기준은 품질 65점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "선명영상", "price": 390, "quality": 92, "desc": "야간 화질이 좋기로 유명한 업체."},
+			{"name": "또렷캠", "price": 320, "quality": 80, "desc": "가성비 좋은 신생 기업 제품."},
+			{"name": "흐릿캠", "price": 240, "quality": 55, "desc": "싸지만 화질이 흐릿하다는 평."},
+		],
+		"exp": 50,
+	},
+	{
+		"id": "police_cones",
+		"kind": "metal",
+		"destination": "police",
+		"item": "교통 안전 고깔 200개",
+		"budget": 200,
+		"required": 45,
+		"fragile": false,
+		"brief": [
+			"교통 정리에 쓸 안전 고깔 200개가 필요하대요.",
+			"기준은 품질 45점으로 낮은 편이에요. 예산을 아낄 기회죠!",
+		],
+		"vendors": [
+			{"name": "단단안전", "price": 190, "quality": 88, "desc": "반사띠가 오래가는 업체."},
+			{"name": "주황산업", "price": 150, "quality": 70, "desc": "도로 공사 현장 납품이 많은 업체."},
+			{"name": "대충고깔", "price": 100, "quality": 52, "desc": "가장 싸지만 쓸 만하다는 평."},
+		],
+		"exp": 40,
+	},
+	# ---- 한빛시립병원
+	{
+		"id": "hospital_beds",
+		"kind": "furniture",
+		"destination": "hospital",
+		"item": "병동 침대 12대",
+		"budget": 960,
+		"required": 70,
+		"fragile": false,
+		"brief": [
+			"한빛시립병원에서 병동 침대 12대를 요청했어요.",
+			"환자분들이 쓰실 거라 검수 기준은 품질 70점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "메디베드", "price": 940, "quality": 95, "desc": "대학병원에도 납품하는 업체. 비싸다."},
+			{"name": "쾌유가구", "price": 780, "quality": 84, "desc": "공공병원 납품 경험이 많은 업체."},
+			{"name": "반값침대", "price": 600, "quality": 60, "desc": "가장 싸지만 바퀴 잠금이 약하다."},
+		],
+		"exp": 55,
+	},
+	{
+		"id": "hospital_monitors",
+		"kind": "device",
+		"destination": "hospital",
+		"item": "환자 감시 장치 6대",
+		"budget": 1200,
+		"required": 80,
+		"fragile": true,
+		"brief": [
+			"병원 중환자실에 쓸 환자 감시 장치 6대 요청이에요. 기준이 80점으로 아주 높아요.",
+			"정밀 의료기기라 파손 주의예요. 품질 검사와 운전 둘 다 중요해요!",
+		],
+		"vendors": [
+			{"name": "생명테크", "price": 1180, "quality": 97, "desc": "의료기기 인증을 여럿 받은 업체. 아주 비싸다."},
+			{"name": "바이탈메디", "price": 980, "quality": 90, "desc": "국내 병원 납품 실적이 많은 업체."},
+			{"name": "깜빡모니터", "price": 760, "quality": 66, "desc": "싸지만 화면이 자주 꺼진다는 신고."},
+		],
+		"exp": 70,
+	},
+	{
+		"id": "hospital_gowns",
+		"kind": "soft",
+		"destination": "hospital",
+		"item": "환자복 200벌",
+		"budget": 300,
+		"required": 50,
+		"fragile": false,
+		"brief": [
+			"병원에서 환자복 200벌이 필요하대요.",
+			"기준은 품질 50점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "포근의류", "price": 290, "quality": 90, "desc": "의료용 섬유 전문 업체."},
+			{"name": "깨끗봉제", "price": 220, "quality": 74, "desc": "병원 세탁에도 튼튼하다는 평."},
+			{"name": "얇은옷감", "price": 160, "quality": 54, "desc": "가장 싸지만 금방 해진다는 소문."},
+		],
+		"exp": 40,
+	},
+	# ---- 11/18 추가 (뒤에만 추가: 저장 파일의 업무 번호가 바뀌지 않게)
+	{
+		"id": "fire_hoses",
+		"kind": "metal",
+		"destination": "fire",
+		"item": "소방 호스 30본",
+		"budget": 500,
+		"required": 60,
+		"fragile": false,
+		"brief": [
+			"한빛소방서에서 소방 호스 30본을 요청했어요.",
+			"물이 새면 큰일이라 검수 기준은 품질 60점 이상이에요.",
+		],
+		"vendors": [
+			{"name": "강철호스", "price": 480, "quality": 92, "desc": "압력 시험을 통과한 업체. 비싸다."},
+			{"name": "물길산업", "price": 400, "quality": 78, "desc": "소방서 납품 실적이 많은 중소기업."},
+			{"name": "새는호스", "price": 300, "quality": 52, "desc": "가장 싸지만 이음새 불량 신고가 있다."},
+		],
+		"exp": 50,
+	},
 ]
 
 ## Facility upgrades bought with the team budget (만원). "costs" has one entry per level.
@@ -296,6 +491,30 @@ const UPGRADES := [
 
 static func get_task(index: int) -> Dictionary:
 	return TASKS[posmod(index, TASKS.size())]
+
+
+## Destinations that have tasks, in TASKS order.
+static func destinations() -> Array:
+	var out: Array = []
+	for t: Dictionary in TASKS:
+		var d := str(t["destination"])
+		if not out.has(d):
+			out.append(d)
+	return out
+
+
+## Next task after `last` (a TASKS index, -1 = none): a random destination other than
+## the last task's, then a random task there. Schools no longer dominate (7 of 23 tasks).
+static func pick_index(last: int, rng: RandomNumberGenerator) -> int:
+	var places := destinations()
+	if last >= 0 and places.size() > 1:
+		places.erase(str(get_task(last)["destination"]))
+	var place: String = places[rng.randi() % places.size()]
+	var options: Array = []
+	for i in TASKS.size():
+		if str((TASKS[i] as Dictionary)["destination"]) == place:
+			options.append(i)
+	return int(options[rng.randi() % options.size()])
 
 
 static func grade(score: float, required: float) -> String:

@@ -14,7 +14,7 @@ const LEADER := Vector2i(13, 4)
 const PC := Vector2i(13, 7)
 const CAR := Vector2i(31, 20)
 const TICKET := Vector2i(36, 3)  # below the cafeteria ticket machine
-const PLACES := ["school", "fire", "clinic", "center"]
+const PLACES := ["school", "fire", "clinic", "center", "nursing", "police", "hospital"]
 const RACE_SCRIPT := "res://scripts/minigames/race_game.gd"
 const QC_SCRIPT := "res://scripts/minigames/qc_game.gd"
 
@@ -38,6 +38,19 @@ func _run() -> void:
 	await _frames(5)
 	var gs := _a("GameState")
 	(gs.get("rng") as RandomNumberGenerator).seed = _seed
+
+	_step = "task picker"
+	var pick_rng := RandomNumberGenerator.new()
+	pick_rng.seed = _seed
+	var seen := {}
+	var last := 0
+	for k in 300:
+		var next := TaskData.pick_index(last, pick_rng)
+		var place := str(TaskData.get_task(next)["destination"])
+		_check(place != str(TaskData.get_task(last)["destination"]), "same place twice in a row: %s" % place)
+		seen[place] = true
+		last = next
+	_check(seen.size() == PLACES.size(), "task picker skipped places: %s" % [seen.keys()])
 	# Loaded at run time: naming these classes here would compile them before the
 	# autoloads (GameState...) exist, and the test would not start at all.
 	load(RACE_SCRIPT).set("autopilot", true)  # the race drives itself (steering: tests/drive_bot.gd)
@@ -97,6 +110,54 @@ func _run() -> void:
 	_step = "leave early"
 	await _walk_out(Vector2i(11, 22), false)
 	_check(_map() == "office", "office door let the player leave before work was done")
+
+	_step = "wandering npcs"
+	var npc_start := {}
+	for n: Node in get_nodes_in_group("interactable"):
+		if n.get("npc_id") != null:
+			npc_start[n] = (n as Node2D).position
+	await _frames(60 * 8)
+	var moved := 0
+	for n: Node in npc_start:
+		var d := (n as Node2D).position.distance_to(npc_start[n])
+		if bool(n.get("wander")):
+			moved += 1 if d > 8.0 else 0
+		else:
+			_check(d < 0.5, "%s should stand still but moved %.1f px" % [n.get("npc_id"), d])
+	_check(moved >= 2, "wandering NPCs did not walk (moved: %d)" % moved)
+	await _shot("02b_wander", 0)
+
+	_step = "wonmuncheol"
+	var lawyer: Node2D = null
+	for n: Node in get_nodes_in_group("interactable"):
+		if n.get("npc_id") == "wonmuncheol":
+			lawyer = n as Node2D
+	_check(lawyer != null, "원문철 not in the office")
+	if lawyer != null:
+		var pl := current_scene.get("player") as Node2D
+		pl.position = lawyer.position + Vector2(0, 14)
+		pl.set("facing", "up")
+		await _frames(2)
+		_press("interact")
+		await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "원문철 did not talk", 60)
+		await _shot("02c_wonmuncheol", 40)
+		await _drain_dialogue()
+		_check(gs.call("has_flag", "met_wonmuncheol"), "원문철 intro flag missing")
+
+	_step = "menu shortcuts"
+	_press("menu_task")
+	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "B (업무) did not open the task panel", 60)
+	await _drain_dialogue()
+	_press("menu_bag")
+	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "I (가방) did not open the bag", 60)
+	await _drain_dialogue([99])
+	_press("menu_growth")
+	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "C (성장) did not open growth", 60)
+	await _drain_dialogue([99])
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://save.json"))
+	_press("menu_save")
+	await _frames(10)
+	_check(FileAccess.file_exists("user://save.json"), "U (저장) did not save")
 
 	# ---- tasks until the day ends (forced leave or 3 tasks + door)
 	var day := int(gs.get("day"))
@@ -181,8 +242,12 @@ func _run() -> void:
 		gs.set("fatigue", 0)
 		gs.call("add_fatigue", 50)
 		_press("cancel")
-		await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "menu did not open")
-		await _drain_dialogue([1, 0])  # 가방 -> first item
+		await _until(func() -> bool: return bool(_a("Dialogue").get("overlay_open")), "phone menu did not open")
+		await _shot("14_phone", 20)
+		_press("move_right")  # 업무 -> 가방
+		_press("interact")
+		await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "가방 app did not open")
+		await _drain_dialogue([0])  # first item
 		_check(int(gs.get("fatigue")) < 50, "item from the bag did not reduce fatigue")
 
 	if not _failed:
@@ -282,6 +347,15 @@ func _one_task(i: int) -> void:
 	_step = "task %d: drive" % (i + 1)
 	if i == 0:
 		await _shot("05_drive", 60 * 8)
+		await _frames(60 * 5)  # countdown + speeding up
+		var race := current_scene
+		var before := float(race.get("_speed"))
+		Input.action_press("move_down")
+		await _frames(90)
+		var braked := float(race.get("_speed"))
+		Input.action_release("move_down")
+		_check(before > 150.0 and braked <= float(race.get("BRAKE_SPEED")) + 1.0,
+				"down arrow did not brake: %.0f -> %.0f" % [before, braked])
 	await _until(func() -> bool: return current_scene != null and current_scene.get("map_size_px") != null \
 			and not _a("SceneRouter").get("busy"), "drive never finished", 60 * 90)
 	_check(int(story.call("step")) == 3, "not ARRIVED after drive")

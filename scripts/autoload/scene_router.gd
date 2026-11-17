@@ -10,6 +10,9 @@ const SCHOOL := "res://scenes/maps/school.tscn"
 const FIRE := "res://scenes/maps/fire.tscn"
 const CLINIC := "res://scenes/maps/clinic.tscn"
 const CENTER := "res://scenes/maps/center.tscn"
+const NURSING := "res://scenes/maps/nursing.tscn"
+const POLICE := "res://scenes/maps/police.tscn"
+const HOSPITAL := "res://scenes/maps/hospital.tscn"
 const LAB := "res://scenes/maps/lab.tscn"
 const DRIVE := "res://scenes/minigames/drive.tscn"
 
@@ -21,6 +24,9 @@ const MAPS := {
 	"fire": FIRE,
 	"clinic": CLINIC,
 	"center": CENTER,
+	"nursing": NURSING,
+	"police": POLICE,
+	"hospital": HOSPITAL,
 	"lab": LAB,
 }
 

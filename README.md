@@ -23,7 +23,7 @@ Streamlit Community Cloud가 `streamlit_app.py`로 단일 html 게임을 전체 
 설정: `.streamlit/config.toml`(저장소 루트에 있어야 함), 의존성 `requirements.txt`.
 저장 파일은 브라우저(IndexedDB)에 남는다. 게임은 iframe 안에서 돌기 때문에 키보드는 화면을 한 번 클릭한 뒤부터 먹는다.
 
-조작: 방향키/WASD 이동(Shift를 누르면 달리기), Space·Enter 말 걸기, Esc 메뉴, Q 아이템, 하단 메뉴 바(업무·가방·성장·저장). 운전 미니게임은 ← →.
+조작: 방향키/WASD 이동(Shift를 누르면 달리기), Space·Enter 말 걸기, Esc 스마트폰 메뉴, Q 아이템, 하단 메뉴 바(업무 B·가방 I·성장 C·저장 U). 운전 미니게임은 ← → 핸들, ↓ 감속.
 
 개발 규칙과 구조는 `CLAUDE.md`, 기획·우선순위·일정은 `docs/plan.md`.
 임시 도트는 `python tools/gen_placeholders.py`로 다시 만들 수 있다(Pillow 필요, macOS는 python3).

@@ -51,7 +51,10 @@ const TRACKS := [
 	},
 ]
 
-const DESTINATION_TRACKS := {"school": [0, 1], "fire": [2, 3], "clinic": [4, 5], "center": [6, 7]}
+const DESTINATION_TRACKS := {
+	"school": [0, 1], "fire": [2, 3], "clinic": [4, 5], "center": [6, 7],
+	"nursing": [1, 5], "police": [0, 6], "hospital": [3, 7],
+}
 
 ## ground: off-road color, road / edge: asphalt and curb, sidewalk: a paved strip along
 ## the road (towns), band: a river or the sea following one side of the road,

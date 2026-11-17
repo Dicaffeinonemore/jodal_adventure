@@ -20,6 +20,8 @@ var map_size_px := Vector2.ZERO
 var _exit_centers: Dictionary = {}  # "exit:<to>" -> world position
 var _marker: Label
 var _marker_t := 0.0
+var _rows := PackedStringArray()
+var _reserved: Dictionary = {}  # cells wandering NPCs keep off (Vector2i -> true)
 
 
 # ---------------------------------------------------------------- override these
@@ -37,8 +39,10 @@ func spawns() -> Dictionary:
 
 
 ## [{"id": "narumi", "cell": Vector2i(3, 4)}, ...]
-## Optional per entry: "reach" (interact radius, for staff behind a counter) and
-## "from" (cell the player talks from; used by tests/smoke_loop.gd).
+## Optional per entry: "reach" (interact radius, for staff behind a counter),
+## "from" (cell the player talks from; used by tests/smoke_loop.gd) and
+## "wander": false (keep this one in place even if Story.npc_wanders() allows it).
+## Wandering NPCs stay within Npc.WANDER_RADIUS cells of "cell".
 func npcs() -> Array:
 	return []
 
@@ -84,13 +88,6 @@ func _ready() -> void:
 	entities.y_sort_enabled = true
 	add_child(entities)
 
-	for entry: Dictionary in npcs():
-		var npc := Npc.new().setup(str(entry["id"]))
-		npc.position = Tiles.cell_center(entry["cell"])
-		if entry.has("reach"):
-			npc.interact_radius = float(entry["reach"])
-		entities.add_child(npc)
-
 	for entry: Dictionary in objects():
 		var tex: Texture2D = null
 		if entry.has("texture"):
@@ -99,9 +96,27 @@ func _ready() -> void:
 				str(entry["id"]), tex, float(entry.get("radius", 14.0)), bool(entry.get("solid", false)))
 		obj.position = Tiles.cell_center(entry["cell"])
 		entities.add_child(obj)
+		_reserve_around(entry["cell"])
 
 	for entry: Dictionary in exits():
 		_add_exit(entry)
+	for spawn_cell: Vector2i in spawns().values():
+		_reserved[spawn_cell] = true
+
+	for entry: Dictionary in npcs():
+		var id := str(entry["id"])
+		var npc := Npc.new().setup(id)
+		npc.position = Tiles.cell_center(entry["cell"])
+		npc.home = entry["cell"]
+		npc.map = self
+		npc.wander = Story.npc_wanders(id) and bool(entry.get("wander", true))
+		if not npc.wander:  # keep the cells in front of staff free (team leader, receivers)
+			_reserve_around(entry["cell"])
+			if entry.has("from"):
+				_reserve_around(entry["from"])
+		if entry.has("reach"):
+			npc.interact_radius = float(entry["reach"])
+		entities.add_child(npc)
 
 	player = Player.new()
 	player.name = "Player"
@@ -137,6 +152,7 @@ func _ready() -> void:
 
 func _paint() -> void:
 	var rows := layout()
+	_rows = rows
 	var width := 0
 	for y in rows.size():
 		var row := rows[y]
@@ -148,6 +164,7 @@ func _paint() -> void:
 				var obj := Interactable.new().setup(str(Tiles.OBJECT_CHARS[ch]))
 				obj.position = Tiles.cell_center(Vector2i(x, y))
 				add_child(obj)
+				_reserve_around(Vector2i(x, y))
 	map_size_px = Vector2(width * Tiles.TILE, rows.size() * Tiles.TILE)
 
 
@@ -185,6 +202,7 @@ func _add_exit(entry: Dictionary) -> void:
 	area.position = Vector2(r.position * Tiles.TILE) + rect.size / 2.0
 	var to := str(entry["to"])
 	var spawn := str(entry.get("spawn", "default"))
+	_reserve_around(r.position, r.size)
 	_exit_centers["exit:" + to] = area.position
 	area.body_entered.connect(_on_exit_entered.bind(to, spawn))
 	add_child(area)
@@ -193,6 +211,23 @@ func _add_exit(entry: Dictionary) -> void:
 func _on_exit_entered(body: Node2D, to: String, spawn: String) -> void:
 	if body is Player and not SceneRouter.busy:
 		Story.on_exit(map_id(), to, spawn)
+
+
+## Cell a wandering NPC may step on: inside the map, not a solid tile, and not next
+## to an object, an exit or a spawn point (so it never blocks what the player needs).
+func npc_can_enter(cell: Vector2i) -> bool:
+	if cell.y < 0 or cell.y >= _rows.size() or cell.x < 0 or cell.x >= _rows[cell.y].length():
+		return false
+	if Tiles.tile_for(_rows[cell.y][cell.x]) in Tiles.SOLID:
+		return false
+	return not _reserved.has(cell)
+
+
+## Marks the rect of cells and a 1-cell ring around it as off limits for wandering NPCs.
+func _reserve_around(cell: Vector2i, size: Vector2i = Vector2i.ONE) -> void:
+	for y in range(cell.y - 1, cell.y + size.y + 1):
+		for x in range(cell.x - 1, cell.x + size.x + 1):
+			_reserved[Vector2i(x, y)] = true
 
 
 # ---------------------------------------------------------------- camera

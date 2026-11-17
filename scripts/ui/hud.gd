@@ -3,11 +3,13 @@ extends CanvasLayer
 ## Tycoon-style HUD.
 ##   top bar:    day + clock | rank name | fatigue bar | condition ...... wallet | team budget | reputation
 ##   below it:   promotion gauge (left: exp toward the next rank), current objective (center)
-##   bottom bar: 업무 / 가방 / 성장 / 저장 buttons (Story.open_panel)
+##   bottom bar: 업무 / 가방 / 성장 / 저장 buttons (Story.open_panel), also on keys B / I / C / U
 ## Rewards float up from the player (GameState.popup) and numbers count up.
 ## Esc / touch B opens the full menu.
 
-const BAR_BUTTONS := [["업무", "task"], ["가방", "bag"], ["성장", "growth"], ["저장", "save"]]
+## [label, Story.open_panel id, shortcut action, key shown on PC]
+const BAR_BUTTONS := [["업무", "task", "menu_task", "B"], ["가방", "bag", "menu_bag", "I"],
+		["성장", "growth", "menu_growth", "C"], ["저장", "save", "menu_save", "U"]]
 const COUNT_TIME := 0.6
 
 var _root: Control
@@ -132,7 +134,7 @@ func _ready() -> void:
 	_root.add_child(_bar)
 	for entry: Array in BAR_BUTTONS:
 		var b := Button.new()
-		b.text = str(entry[0])
+		b.text = str(entry[0]) if GameState.is_touch_device() else "%s %s" % [entry[0], entry[3]]
 		b.custom_minimum_size = Vector2(56, 24)
 		b.focus_mode = Control.FOCUS_NONE  # Space/Enter stay with the game
 		b.pressed.connect(_on_bar_pressed.bind(str(entry[1])))
@@ -282,3 +284,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("cancel"):
 		get_viewport().set_input_as_handled()
 		Story.open_menu()
+		return
+	for entry: Array in BAR_BUTTONS:
+		if event.is_action_pressed(str(entry[2])):
+			get_viewport().set_input_as_handled()
+			if not Story.is_busy():
+				Story.open_panel(str(entry[1]))
+			return

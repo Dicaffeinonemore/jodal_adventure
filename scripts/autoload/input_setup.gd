@@ -14,6 +14,11 @@ const KEYS := {
 	"cancel": [KEY_ESCAPE, KEY_X],
 	"quick_item": [KEY_Q],
 	"run": [KEY_SHIFT],
+	# Bottom menu bar shortcuts (Hud): 업무 B, 가방 I, 성장 C, 저장 U
+	"menu_task": [KEY_B],
+	"menu_bag": [KEY_I],
+	"menu_growth": [KEY_C],
+	"menu_save": [KEY_U],
 	"debug_touch_ui": [KEY_F2],
 }
 

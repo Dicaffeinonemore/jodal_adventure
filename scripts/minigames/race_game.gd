@@ -8,10 +8,20 @@ extends Node2D
 ## little reputation at the report).
 ##
 ## Controls (actions only): move_left / move_right steer, acceleration is automatic,
+## move_down (↓) brakes down to BRAKE_SPEED (tight corners, traffic ahead),
 ## "run" (Shift) drifts (sharper turn, fills the drift gauge: full gauge = +1 booster),
 ## "quick_item" (Q) drinks an energy drink = booster (a drift charge first, else one
 ## from the bag). Touch devices get on-screen buttons for the same actions.
 ## Bad condition makes the wheel jerk now and then (drowsy); a drink stops it a while.
+## Fairness rules (11/18, after playtest: oncoming cars appeared right in front while
+## overtaking, and cars next to barricades closed both lanes):
+##   - fewer, slower oncoming cars, respawned further ahead, with a blinking "!" while
+##     they are near; one that meets the player in its lane brakes and pulls onto the
+##     shoulder (yield),
+##   - oncoming cars wait before a barricade until the player has passed it, cars ahead
+##     of the player speed up through a barricade zone and steer around barricades in
+##     their own lane, so a barricade never has a car beside it when the player arrives,
+##   - barricades are at least BARRICADE_GAP apart and cars never spawn on top of one.
 ## Story.cargo_damage_mult() scales damage (fragile cargo, truck upgrade).
 
 ## Tests: drive by itself (keeps right, avoids obstacles, boosts) / pick the course.
@@ -25,6 +35,7 @@ const BOOST_SPEED := 350.0
 const OFFROAD_SPEED := 115.0
 const ACCEL := 230.0
 const BRAKE := 420.0
+const BRAKE_SPEED := 70.0  # holding move_down slows the truck to this
 const TURN := 2.5  # rad/s at full grip
 const DRIFT_TURN := 3.5
 const GRIP := 9.0
@@ -39,7 +50,20 @@ const FENCE := 150.0  # past the curb, an invisible fence stops the truck
 const COUNTDOWN := 3.0
 const CAR_R := 9.0
 const TRAFFIC := 7
-const BARRICADES := 7
+const BARRICADES := 6
+const ONCOMING_SHARE := 0.3
+const ONCOMING_SPEED := Vector2(80.0, 115.0)
+const FORWARD_SPEED := Vector2(100.0, 140.0)
+const ONCOMING_RESPAWN := Vector2(1200.0, 1600.0)  # ahead of the player, along the road
+const FORWARD_RESPAWN := Vector2(700.0, 1100.0)
+const CAR_GAP := 260.0  # min distance between two cars in the same lane when placing
+const YIELD_DIST := 300.0  # oncoming car brakes and moves to the shoulder this far ahead of a player in its lane
+const SHOULDER := 44.0  # lateral of a yielding car (road half width 46)
+const WARN_DIST := 560.0  # "!" over oncoming cars this close ahead
+const BARRICADE_CLEAR := 220.0  # no traffic this close to a barricade while the player approaches it
+const BARRICADE_WATCH := 700.0  # ... "approaches" = the barricade is this close ahead of the player
+const BARRICADE_GAP := 550.0
+const SIDE_STEP := 70.0  # lateral px/s when a car changes its line
 const STARS := 8
 const DRINKS := 2
 const DAMAGE := {"car": 8, "barricade": 6, "fence": 4}
@@ -88,7 +112,9 @@ var _drowsy_block := 0.0
 var _auto_drift := false
 
 var _truck: Sprite2D
-var _traffic: Array[Dictionary] = []  # {node, offset, lateral, speed (+ forward / - oncoming), cd}
+## {node, warn (Label), offset, lateral (its lane), lat (where it is now), speed (+ forward / - oncoming), cd}
+var _traffic: Array[Dictionary] = []
+var _warn_cd := 0.0
 var _items: Array[Dictionary] = []  # {kind, node, offset, lateral}
 var _skids: Skids
 var _fx: Effects
@@ -224,6 +250,8 @@ func _drive(delta: float) -> void:
 		target = BOOST_SPEED * (0.7 if offroad else 1.0)
 	if _drifting:
 		target *= 0.95
+	if Input.is_action_pressed("move_down"):  # the autopilot never presses it; tests do
+		target = minf(target, BRAKE_SPEED)
 	_speed = move_toward(_speed, target, (ACCEL if _speed < target else BRAKE) * delta)
 	var dir := Vector2.UP.rotated(_heading)
 	_vel = _vel.lerp(dir * _speed, 1.0 - exp(-(DRIFT_GRIP if _drifting else GRIP) * delta))
@@ -362,38 +390,131 @@ func _spawn_traffic() -> void:
 			s.modulate = TRAFFIC_COLORS[i % TRAFFIC_COLORS.size()]
 		s.z_index = 5
 		add_child(s)
-		var c := {"node": s, "offset": 0.0, "lateral": 0.0, "speed": 0.0, "cd": 0.0}
+		var warn := UiTheme.make_label("!", UiTheme.SIZE, UiTheme.COLOR_BAD, true)
+		warn.add_theme_color_override("font_outline_color", Color(0.1, 0.08, 0.15))
+		warn.add_theme_constant_override("outline_size", 4)
+		warn.z_index = 6
+		warn.hide()
+		add_child(warn)
+		var c := {"node": s, "warn": warn, "offset": 0.0, "lateral": 0.0, "lat": 0.0, "speed": 0.0, "cd": 0.0}
 		_traffic.append(c)
-		_place_car(c, 450.0 + (_length - 800.0) * (i + 0.5) / TRAFFIC)
+		_place_car(c, 450.0 + (_length - 800.0) * (i + 0.5) / TRAFFIC, _rng.randf() < ONCOMING_SHARE)
 
 
-## Puts a car on the road at offset o: about half drive our way (slower, right lane),
-## the rest come the other way in the left lane.
-func _place_car(c: Dictionary, o: float) -> void:
-	var oncoming := _rng.randf() < 0.45
+## Puts a car on the road near offset o: most drive our way (slower, right lane), some
+## come the other way in the left lane. Moves it on until it is clear of other cars in
+## its lane and of barricades.
+func _place_car(c: Dictionary, o: float, oncoming: bool) -> void:
+	var lateral := LANE if oncoming else -LANE
+	for k in 8:
+		if _spot_clear(c, o, lateral):
+			break
+		o += 160.0
 	c["offset"] = o
-	c["lateral"] = LANE if oncoming else -LANE
-	c["speed"] = -_rng.randf_range(110.0, 150.0) if oncoming else _rng.randf_range(100.0, 140.0)
+	c["lateral"] = lateral
+	c["lat"] = lateral
+	c["speed"] = -_rng.randf_range(ONCOMING_SPEED.x, ONCOMING_SPEED.y) if oncoming \
+			else _rng.randf_range(FORWARD_SPEED.x, FORWARD_SPEED.y)
 	c["cd"] = 0.0
+
+
+func _spot_clear(c: Dictionary, o: float, lateral: float) -> bool:
+	for other: Dictionary in _traffic:
+		if other != c and float(other["offset"]) >= 0.0 and is_equal_approx(float(other["lateral"]), lateral) \
+				and absf(float(other["offset"]) - o) < CAR_GAP:
+			return false
+	for it: Dictionary in _items:
+		if str(it["kind"]) == "barricade" and absf(float(it["offset"]) - o) < BARRICADE_CLEAR + 40.0:
+			return false
+	return true
+
+
+## Signed distance of the player from the road center (+ = the oncoming lane).
+func _player_lateral() -> float:
+	return (_pos - _curve.sample_baked(_offset)).dot(_normal(_offset))
+
+
+## The next barricade between the player and offset o (oncoming car) that the player is
+## about to reach, or {}.
+func _barricade_before(o: float) -> Dictionary:
+	for it: Dictionary in _items:
+		var bo := float(it["offset"])
+		if str(it["kind"]) == "barricade" and bo > _offset - 40.0 and bo < o \
+				and bo - _offset < BARRICADE_WATCH:
+			return it
+	return {}
+
+
+## A barricade in the given lane within [o - behind, o + ahead], or {}.
+func _barricade_in_lane(o: float, lateral: float, behind: float, ahead: float) -> Dictionary:
+	for it: Dictionary in _items:
+		var d := float(it["offset"]) - o
+		if str(it["kind"]) == "barricade" and d > -behind and d < ahead \
+				and signf(float(it["lateral"])) == signf(lateral):
+			return it
+	return {}
 
 
 func _move_traffic(delta: float) -> void:
 	if _state == State.COUNTDOWN:
 		return
+	var plat := _player_lateral()
+	_warn_cd = maxf(0.0, _warn_cd - delta)
 	for c: Dictionary in _traffic:
 		if float(c["offset"]) < -1000.0:
+			(c["warn"] as Label).hide()
 			continue  # parked out of sight
-		c["offset"] = float(c["offset"]) + float(c["speed"]) * delta
-		c["cd"] = maxf(0.0, float(c["cd"]) - delta)
 		var o := float(c["offset"])
+		var spd := float(c["speed"])
+		var lane := float(c["lateral"])
+		var want_lat := lane
+		var ahead_of_player := o - _offset
+		if spd < 0.0:
+			# Head-on with a player overtaking in this lane: brake and pull onto the shoulder.
+			if plat > 4.0 and ahead_of_player > -20.0 and ahead_of_player < YIELD_DIST:
+				spd *= 0.25
+				want_lat = SHOULDER
+			# Wait before a barricade until the player has passed it.
+			var b := _barricade_before(o)
+			var new_o := o + spd * delta
+			if not b.is_empty() and o >= float(b["offset"]) + BARRICADE_CLEAR:
+				new_o = maxf(new_o, float(b["offset"]) + BARRICADE_CLEAR)
+			c["offset"] = new_o
+		else:
+			# Ahead of the player near a barricade: hurry through so the zone is clear.
+			var near := _barricade_in_lane(o, LANE, 260.0, 260.0)
+			if near.is_empty():
+				near = _barricade_in_lane(o, -LANE, 260.0, 260.0)
+			if not near.is_empty() and ahead_of_player > -20.0 and ahead_of_player < BARRICADE_WATCH:
+				spd = maxf(spd, 255.0)
+			c["offset"] = o + spd * delta
+		# Steer around a barricade in its own lane (after the player is past, or ahead of them).
+		if not _barricade_in_lane(o, lane, 120.0, 140.0).is_empty():
+			want_lat = -lane
+		c["lat"] = move_toward(float(c["lat"]), want_lat, SIDE_STEP * delta)
+		c["cd"] = maxf(0.0, float(c["cd"]) - delta)
+		o = float(c["offset"])
 		# cars left behind (or at the road ends) come back further ahead
 		if o < _offset - 500.0 or o < 60.0 or o > _length - 120.0:
-			var ahead := _offset + _rng.randf_range(700.0, 1100.0)
+			var oncoming := _rng.randf() < ONCOMING_SHARE
+			var span := ONCOMING_RESPAWN if oncoming else FORWARD_RESPAWN
+			var ahead := _offset + _rng.randf_range(span.x, span.y)
 			if ahead < _length - 200.0:
-				_place_car(c, ahead)
+				_place_car(c, ahead, oncoming)
 			else:
 				c["offset"] = -10000.0
 				continue
+		# Blinking "!" over oncoming cars that are close ahead; a toast if the player is in their lane.
+		var warn: Label = c["warn"]
+		var d_ahead := float(c["offset"]) - _offset
+		var show_warn := float(c["speed"]) < 0.0 and d_ahead > 0.0 and d_ahead < WARN_DIST
+		warn.visible = show_warn and fmod(_t, 0.4) < 0.26
+		if show_warn:
+			warn.position = (_car_pos(c) + Vector2(-3, -26)).round()
+			if plat > 4.0 and _warn_cd <= 0.0 and _state == State.DRIVING:
+				_warn_cd = 4.0
+				Sound.play("warn")
+				_ui.flash("맞은편에서 차가 와요! 오른쪽 차선으로", UiTheme.COLOR_WARN)
 		var cp := _car_pos(c)
 		var dv := _pos - cp
 		if _state == State.DRIVING and dv.length() < CAR_R * 2.0 + 2.0:
@@ -407,7 +528,7 @@ func _move_traffic(delta: float) -> void:
 
 func _car_pos(c: Dictionary) -> Vector2:
 	var o := clampf(float(c["offset"]), 0.0, _length)
-	return _curve.sample_baked(o) + _normal(o) * float(c["lateral"])
+	return _curve.sample_baked(o) + _normal(o) * float(c["lat"])
 
 
 func traffic_positions() -> Array[Vector2]:
@@ -431,8 +552,14 @@ func _place_items() -> void:
 	kinds.shuffle()
 	var span := _length - 700.0
 	var tex := {"barricade": "barricade.png", "star": "pickup_star.png", "drink": "pickup_drink.png"}
+	var last_barricade := -INF
 	for i in kinds.size():
 		var o := 350.0 + span * (i + _rng.randf_range(0.15, 0.85)) / kinds.size()
+		if kinds[i] == "barricade":
+			if o - last_barricade < BARRICADE_GAP:
+				kinds[i] = "star"  # too close to the last one: a pickup instead
+			else:
+				last_barricade = o
 		var lat := (LANE if _rng.randf() < 0.5 else -LANE) if kinds[i] == "barricade" \
 				else _rng.randf_range(-ROAD_HALF + 14.0, ROAD_HALF - 14.0)
 		var s := Sprite2D.new()
@@ -992,9 +1119,9 @@ class RaceHud:
 		_gauge.add_theme_stylebox_override("fill", fill)
 		bvb.add_child(_gauge)
 
-		var hint_text := "← → 핸들 / Shift 드리프트 / Q 에너지 드링크 부스터 (가속은 자동)"
+		var hint_text := "← → 핸들 / ↓ 감속 / Shift 드리프트 / Q 에너지 드링크 부스터 (가속은 자동)"
 		if GameState.is_touch_device():
-			hint_text = "◀ ▶ 핸들 / 드리프트 / 부스터 버튼 (가속은 자동)"
+			hint_text = "◀ ▶ 핸들 / 감속 / 드리프트 / 부스터 버튼 (가속은 자동)"
 			_touch_buttons(root, m)
 		var hint := UiTheme.make_label(hint_text, UiTheme.SIZE_SMALL, UiTheme.COLOR_TEXT)
 		hint.anchor_top = 1.0
@@ -1020,6 +1147,7 @@ class RaceHud:
 		var view := root.get_viewport().get_visible_rect().size
 		var specs := [
 			["move_left", "◀", Vector2(m + 4, view.y - 64)], ["move_right", "▶", Vector2(m + 66, view.y - 64)],
+			["move_down", "감속", Vector2(view.x - m - 194, view.y - 64)],
 			["run", "드리프트", Vector2(view.x - m - 128, view.y - 64)], ["quick_item", "부스터", Vector2(view.x - m - 62, view.y - 64)],
 		]
 		var tex := load("res://assets/sprites/placeholder/touch_a.png") as Texture2D

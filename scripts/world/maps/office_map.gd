@@ -59,6 +59,8 @@ func npcs() -> Array:
 	list.append({"id": "senior", "cell": Vector2i(6, 7)})
 	list.append({"id": "vendor", "cell": Vector2i(5, 15)})
 	list.append({"id": "cafeteria", "cell": Vector2i(27, 3)})
+	# 주차장: 교통사고 전문 변호사 (블랙박스 퀴즈)
+	list.append({"id": "wonmuncheol", "cell": Vector2i(36, 19)})
 	return list
 
 

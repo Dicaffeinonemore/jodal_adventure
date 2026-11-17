@@ -51,7 +51,19 @@ const NPCS := {
 	"officer_center": {"name": "오 주무관", "sprite": "npc_officer_center.png", "color": Color("c8e6a0")},
 	"citizen": {"name": "동네 어르신", "sprite": "npc_citizen.png", "color": Color("e0d0c0")},
 	"inspector": {"name": "서 검사관", "sprite": "npc_inspector.png", "color": Color("b0e0ff")},
+	"officer_nursing": {"name": "문 과장", "sprite": "npc_officer_nursing.png", "color": Color("f0c8a0")},
+	"caregiver": {"name": "송 요양보호사", "sprite": "npc_caregiver.png", "color": Color("ffb8c8")},
+	"grandma": {"name": "정 할머니", "sprite": "npc_grandma.png", "color": Color("d8c0f0")},
+	"officer_police": {"name": "남 경위", "sprite": "npc_officer_police.png", "color": Color("a8c0ff")},
+	"police": {"name": "권 순경", "sprite": "npc_police.png", "color": Color("d8f070")},
+	"officer_hospital": {"name": "조 주무관", "sprite": "npc_officer_hospital.png", "color": Color("90e0e0")},
+	"doctor": {"name": "백 선생님", "sprite": "npc_doctor.png", "color": Color("e8f0ff")},
+	# 주차장의 교통사고 전문 변호사 (교통 안전 캐릭터)
+	"wonmuncheol": {"name": "원문철 변호사", "sprite": "npc_wonmuncheol.png", "color": Color("ffd27a")},
 }
+## People who stay put (MapBase never lets them wander): the team leader at the desk,
+## the cafeteria cook, the inspector at the QC station. Receivers (DESTINATIONS) also stay.
+const STATIONARY := ["team_leader", "cafeteria", "inspector"]
 ## 출입증·옷장 화면의 선택지 이름 (GameState.LOOK_KEYS). 색 항목은 이름 대신 색 견본을 보여 준다.
 const LOOK_LABELS := {
 	"gender": "성별", "skin": "피부색", "hair_style": "헤어", "hair_color": "머리색",
@@ -97,6 +109,27 @@ const DESTINATIONS := {
 		"help": "민원실 의자 배치를 같이 해 주실래요?",
 		"thanks": "고마워요! 대기실이 훨씬 넓어 보여요.",
 	},
+	"nursing": {
+		"name": "한빛시립요양원", "receiver": "officer_nursing", "where": "사무실 문 과장님",
+		"idle": ["요양원은 어르신들이 편안하게 생활하시도록 돌보는 곳이에요.", "어르신들이 매일 쓰시는 물건이라 안전이 제일이에요."],
+		"good": "어르신들이 정말 좋아하시겠어요. 고맙습니다!",
+		"help": "생활실까지 옮기는 것 좀 도와주실래요?",
+		"thanks": "덕분에 어르신들 맞을 준비가 끝났어요!",
+	},
+	"police": {
+		"name": "한빛경찰서", "receiver": "officer_police", "where": "민원실 남 경위님",
+		"idle": ["경찰 장비는 시민 안전과 바로 이어져요.", "그래서 들어오는 물품은 꼼꼼히 확인해요."],
+		"good": "현장에서 든든하게 쓰겠어요. 감사합니다!",
+		"help": "장비실 선반 정리를 같이 해 주실래요?",
+		"thanks": "고마워요! 순찰 준비가 훨씬 빨라졌어요.",
+	},
+	"hospital": {
+		"name": "한빛시립병원", "receiver": "officer_hospital", "where": "원무과 조 주무관님",
+		"idle": ["시립병원은 지역 주민 누구나 이용하는 공공 병원이에요.", "환자분들이 쓰는 물품이라 꼼꼼히 확인해요."],
+		"good": "환자분들이 안심하고 쓰시겠어요. 고맙습니다!",
+		"help": "병동까지 같이 옮겨 주실 수 있을까요?",
+		"thanks": "덕분에 병동 준비가 빨리 끝났어요!",
+	},
 }
 
 ## People who only chat (no quest role).
@@ -109,6 +142,10 @@ const AMBIENT := {
 	"firefighter": ["장비가 튼튼해야 현장에서 마음 놓고 뛰어들 수 있어요.", "소방차는 언제든 출동할 수 있게 매일 점검해요."],
 	"nurse": ["진료실 물품은 주민 건강과 바로 이어져요.", "그래서 품질이 제일 중요해요!"],
 	"citizen": ["번호표 뽑고 기다리면 금방 불러 줘요.", "센터 의자가 낡아서 허리가 아팠는데, 새 의자 오면 좋겠네. 허허."],
+	"caregiver": ["어르신들 식사랑 산책을 함께해요.", "미끄럼 방지 매트 하나도 어르신 안전에는 정말 중요해요."],
+	"grandma": ["아이고, 젊은 양반이 수고가 많네.", "새 침대가 들어오면 허리가 덜 아프려나. 허허."],
+	"police": ["순찰 다녀왔어요! 오늘도 한빛동은 평화로워요.", "납품 운전할 때도 과속은 금물이에요!"],
+	"doctor": ["진료 장비가 좋아야 진단도 정확해요.", "필요한 장비를 제때 받으면 환자분들께 큰 도움이 돼요."],
 	"inspector": ["품질검사실 서 검사관이에요. 업체를 정했으면 납품 전에 검사대로 오세요.", "흠집, 얼룩, 금, 빠진 부분! 이 네 가지만 잘 보면 돼요."],
 }
 
@@ -137,6 +174,9 @@ const POLICY_TIPS := {
 	"place_fire": ["국민 안전과 관련된 물품은 조달청이 지정한 전문검사기관이 납품 전에 검사하기도 해요."],
 	"place_clinic": ["납품된 물품에 문제가 생기면 '조달품질신문고'로 하자를 신고할 수 있어요."],
 	"place_center": ["나라장터는 7만 1천여 공공기관과 60만여 조달업체가 함께 쓰는 시스템이에요."],
+	"place_nursing": ["공공기관은 환경표지·저탄소·우수재활용 인증을 받은 녹색제품을 의무적으로 사야 해요."],
+	"place_police": ["국가 계약에서 물품 납품이 늦어지면 업체는 하루에 계약금액의 0.075%를 지체상금으로 물어요."],
+	"place_hospital": ["조달청은 중소기업과 혁신 기업의 제품이 공공시장에 진출하도록 돕는 일도 해요."],
 }
 const GENERAL_TIPS := [
 	"조달청은 공공기관이 필요한 물품과 서비스를 대신 구매하고 계약하는 기관이에요.",
@@ -152,6 +192,19 @@ const GENERAL_TIPS := [
 	"국가 계약에서 업체는 보통 계약금액의 10% 이상을 계약보증금으로 내요. 약속을 지키겠다는 표시예요.",
 	"국가 계약에서 물품 납품이 늦어지면 업체는 하루에 계약금액의 0.075%를 지체상금으로 물어요.",
 	"나르미는 투명을 상징하는 황새, 달이는 영리하고 민첩한 다람쥐가 모티브예요.",
+]
+
+## 원문철 변호사 (청사 주차장): 블랙박스 퀴즈. [question, options, correct index, explanation]
+## Safe-driving common sense tied to the drive minigame, not legal numbers.
+const DASHCAM_QUIZ := [
+	["앞에 느린 차가 가고 있어요. 어떻게 할까요?", ["감속하고 거리를 둔다", "그대로 밀어붙인다", "반대 차선으로 쌩 추월한다"], 0,
+			"정답! 앞차와 거리를 두면 부딪힐 일이 없어요. 반대 차선 추월은 마주 오는 차와 부딪히기 쉬워요."],
+	["급한 커브가 다가와요. 언제 속도를 줄일까요?", ["커브에 들어가기 전에 미리", "커브 한가운데서 급하게", "줄이지 않는다"], 0,
+			"정답! 커브 전에 미리 줄여야 차가 밖으로 밀려나지 않아요."],
+	["운전하다 졸음이 쏟아져요. 가장 좋은 방법은?", ["창문만 열고 계속 달린다", "안전한 곳에서 쉬었다 간다", "속도를 높여 빨리 도착한다"], 1,
+			"정답! 졸음운전은 정말 위험해요. 컨디션이 나쁘면 밥을 먹고 쉬어서 피로부터 풀어요."],
+	["도로에 공사 울타리가 보여요. 어떻게 할까요?", ["속도를 줄이고 비켜 간다", "경적을 울리며 지나간다", "울타리를 밀고 간다"], 0,
+			"정답! 공사 구간에서는 천천히, 미리 차선을 바꿔요."],
 ]
 
 const VENDING_ITEMS := ["coffee", "energybar"]
@@ -176,6 +229,11 @@ func _ready() -> void:
 # ================================================================ queries
 func npc_name(id: String) -> String:
 	return str((NPCS.get(id, {}) as Dictionary).get("name", id))
+
+
+## Whether MapBase lets this NPC walk around (everyone but STATIONARY and receivers).
+func npc_wanders(id: String) -> bool:
+	return not STATIONARY.has(id) and receiver_place(id) == ""
 
 
 func npc_sprite(id: String) -> String:
@@ -363,6 +421,8 @@ func talk(id: String) -> void:
 			await _talk_narumi()
 		"dari":
 			await _talk_dari()
+		"wonmuncheol":
+			await _talk_wonmuncheol()
 		_:
 			if receiver_place(id) != "":
 				await _talk_receiver(id)
@@ -404,7 +464,7 @@ func interact_object(id: String) -> void:
 		"fire_truck":
 			await Dialogue.say("", ["출동 대기 중인 소방차예요. 반짝반짝 잘 닦여 있어요."])
 		"ambulance":
-			await Dialogue.say("", ["보건소 구급차예요. 언제든 나갈 수 있게 준비돼 있어요."])
+			await Dialogue.say("", ["구급차예요. 언제든 나갈 수 있게 준비돼 있어요."])
 		"number_kiosk":
 			await Dialogue.say("번호표 발급기", ["딩동! 번호표가 나왔어요. [%03d번]" % GameState.rng.randi_range(1, 99), "민원 업무는 없으니까 마음만 받을게요."])
 		"chalkboard":
@@ -418,24 +478,40 @@ func interact_object(id: String) -> void:
 	_busy = false
 
 
+## Esc / touch B: the player's smartphone (PhoneMenu) with one app per panel.
 func open_menu() -> void:
 	if _busy:
 		return
 	_busy = true
-	var c: int = await Dialogue.choose("메뉴", "무엇을 할까요?", ["업무 정보", "가방", "성장·시설", "저장하기", "소리 설정", "타이틀로", "닫기"])
-	match c:
-		0:
+	var phone := PhoneMenu.new()
+	get_tree().root.add_child(phone)
+	var obj := objective_text().replace("목표: ", "")
+	var hint := "B 버튼: 닫기" if GameState.is_touch_device() else "방향키 고르기 · Space 열기 · Esc 닫기"
+	var app: String = await phone.run({
+		"status": "%d일차" % GameState.day, "clock": GameState.clock_text(),
+		"date": "%s %s" % [GameState.rank_name(), GameState.player_name],
+		"battery": GameState.FATIGUE_MAX - GameState.fatigue, "battery_label": "체력 ",
+		"apps": [
+			{"id": "task", "label": "업무"}, {"id": "bag", "label": "가방"}, {"id": "growth", "label": "성장"},
+			{"id": "save", "label": "저장"}, {"id": "sound", "label": "소리"}, {"id": "title", "label": "타이틀"},
+		],
+		"note_title": "알림 · 오늘 할 일", "note": obj if obj != "" else "지금은 특별한 일이 없어요.",
+		"hint": hint,
+	})
+	phone.queue_free()
+	match app:
+		"task":
 			await _task_info()
-		1:
+		"bag":
 			await _item_menu()
-		2:
+		"growth":
 			await _growth_menu()
-		3:
+		"save":
 			GameState.save_game()
 			Dialogue.toast("저장했어요.")
-		4:
+		"sound":
 			await _sound_menu()
-		5:
+		"title":
 			var yes: int = await Dialogue.choose("메뉴", "타이틀로 돌아갈까요? (저장하지 않은 진행은 사라져요)", ["돌아가기", "취소"])
 			if yes == 0:
 				_busy = false
@@ -556,9 +632,9 @@ func play_home_intro() -> void:
 		"오늘은 조달청 첫 출근 날! %s 씨, 일어날 시간이에요." % GameState.player_name,
 	])
 	if GameState.is_touch_device():
-		await Dialogue.say("", ["[조작] 이동: 화면 왼쪽을 누르고 끌기 (끝까지 밀면 달리기)", "말 걸기·조사: A 버튼 / 메뉴: B 버튼 / 노란 버튼: 아이템", "아래쪽 메뉴 바에서 업무·가방·성장을 볼 수 있어요."])
+		await Dialogue.say("", ["[조작] 이동: 화면 왼쪽을 누르고 끌기 (끝까지 밀면 달리기)", "말 걸기·조사: A 버튼 / 스마트폰 메뉴: B 버튼 / 노란 버튼: 아이템", "아래쪽 메뉴 바에서 업무·가방·성장을 볼 수 있어요."])
 	else:
-		await Dialogue.say("", ["[조작] 이동: 방향키 또는 WASD / 달리기: Shift를 누른 채 이동", "말 걸기·조사: Space·Enter / 메뉴: Esc / 아이템: Q", "아래쪽 메뉴 바를 눌러 업무·가방·성장을 볼 수도 있어요."])
+		await Dialogue.say("", ["[조작] 이동: 방향키 또는 WASD / 달리기: Shift를 누른 채 이동", "말 걸기·조사: Space·Enter / 스마트폰 메뉴: Esc / 아이템: Q", "단축키: 업무 B / 가방 I / 성장 C / 저장 U (아래쪽 메뉴 바를 눌러도 돼요)"])
 	await Dialogue.say("", ["냉장고와 옷장도 조사할 수 있어요. 준비가 되면 현관문으로 나가 출근해요!"])
 	GameState.set_flag("home_intro")
 	GameState.task_changed.emit()
@@ -609,9 +685,8 @@ func _talk_team_leader() -> void:
 func _assign_task() -> void:
 	var index := 0
 	if GameState.tasks_completed > 0:
-		index = GameState.rng.randi_range(0, TaskData.TASKS.size() - 2)
-		if index >= GameState.last_task_index:
-			index += 1  # skip the previous task so two in a row never match
+		# A different place each time, so every 수요기관 comes up (not mostly the school).
+		index = TaskData.pick_index(GameState.last_task_index, GameState.rng)
 	GameState.last_task_index = index
 	var t := TaskData.get_task(index)
 	var urgent := GameState.tasks_completed > 0 and GameState.rng.randf() < URGENT_CHANCE
@@ -907,6 +982,36 @@ func _talk_narumi() -> void:
 	var tip: String = GENERAL_TIPS.pick_random()
 	lines.append("[조달 상식] " + tip)
 	await Dialogue.say(n, lines)
+
+
+## 원문철 변호사: comments on the current delivery's cargo, then a dashcam quiz.
+func _talk_wonmuncheol() -> void:
+	var n := npc_name("wonmuncheol")
+	var lines: Array = []
+	if not GameState.has_flag("met_wonmuncheol"):
+		GameState.set_flag("met_wonmuncheol")
+		var brake := "감속 버튼" if GameState.is_touch_device() else "↓ 키"
+		lines.append_array([
+			"안녕하세요, 교통사고 전문 변호사 원문철이에요. 여기 주차장에서 블랙박스 영상을 보고 있었어요.",
+			"납품 운전, 무작정 밟는다고 빨리 가는 게 아니에요. 위험하면 %s로 속도를 줄여요!" % brake,
+		])
+	if step() >= Step.ARRIVED:
+		var cargo := int(GameState.task.get("cargo", 100))
+		if cargo >= 90:
+			lines.append("방금 운전 블랙박스 봤어요. 화물 상태 %d%%! 이건 무과실, 아주 모범 운전이에요." % cargo)
+		elif cargo >= 70:
+			lines.append("방금 운전, 화물 상태 %d%%네요. 몇 번 부딪혔죠? 앞차와 거리를 두면 피할 수 있었어요." % cargo)
+		else:
+			lines.append("화물 상태 %d%%... 이건 제가 변호해 드리기 어렵겠는데요? 다음엔 천천히 가요." % cargo)
+	if not lines.is_empty():
+		await Dialogue.say(n, lines)
+	var q: Array = DASHCAM_QUIZ[GameState.rng.randi() % DASHCAM_QUIZ.size()]
+	var c: int = await Dialogue.choose(n, "[블랙박스 퀴즈] " + str(q[0]), q[1])
+	if c == int(q[2]):
+		Sound.play("star")
+		await Dialogue.say(n, [str(q[3])])
+	else:
+		await Dialogue.say(n, ["음, 그러면 사고 나요! 블랙박스를 다시 돌려 볼까요?", str(q[3]).replace("정답! ", "")])
 
 
 func _talk_dari() -> void:

@@ -13,7 +13,8 @@ Player sheets are split into layers (bottom to top) that the game tints at runti
   player_outfit_<n>.png (jacket / vest / jumper / skirt: gray -> outfit color)
   player_face_<0 male|1 female>.png (eyes, blush, mouth: as is)
   player_hair_<n>.png (gray -> hair color)
-NPC sheets: one row (down), 2 idle frames.
+NPC sheets: people use the same 3x4 layout as the player (they walk around);
+  the mascots (나르미, 달이) are one row (down) with 2 idle frames.
 Tiles: one row of 16x16 tiles, order = TILES below = enum in scripts/world/tiles.gd.
 """
 from pathlib import Path
@@ -391,21 +392,41 @@ def _multiply(im, rgb):
 
 
 def human_npc(name, spec, jacket, hair, style=0, gender=0, extras=None, skin=SKIN):
-    img = Image.new("RGBA", (FW * 2, FH), T)
-    for c in range(2):  # frame 1 bobs
-        L = frame_layers(0, c, spec, style, gender)
-        mid = Image.new("RGBA", (FW, FH), T)  # over the clothes (apron)
-        top = Image.new("RGBA", (FW, FH), T)  # over the hair (glasses, cap)
-        if extras:
-            extras(mid, top, c, bob(c))
-        fr = merged(_multiply(L["skin"], skin), L["cbase"], _multiply(L["ctint"], jacket), mid,
-                    L["face"], _multiply(L["hair"], hair), top)
-        img.paste(fr, (c * FW, 0))
+    """Full walking sheet (rows down / up / side, 4 columns) like the player's."""
+    img = Image.new("RGBA", (FW * 4, FH * 3), T)
+    for r in range(3):
+        for c in range(4):
+            L = frame_layers(r, c, spec, style, gender)
+            mid = Image.new("RGBA", (FW, FH), T)  # over the clothes (apron)
+            top = Image.new("RGBA", (FW, FH), T)  # over the hair (glasses, cap)
+            if extras:
+                extras(mid, top, r, c, bob(c))
+            fr = merged(_multiply(L["skin"], skin), L["cbase"], _multiply(L["ctint"], jacket), mid,
+                        L["face"], _multiply(L["hair"], hair), top)
+            img.paste(fr, (c * FW, r * FH))
     img.save(OUT / f"npc_{name}.png")
 
 
-def glasses(mid, top, col, b):
+def combine(*fns):
+    def fn(mid, top, row, col, b):
+        for f in fns:
+            f(mid, top, row, col, b)
+    return fn
+
+
+def glasses(mid, top, row, col, b):
     y0 = 2 + b
+    if row == 1:  # back of the head
+        return
+    if row == 2:  # side: a small lens in front of the eye and the temple to the ear
+        for x in range(X0 + 11, X0 + 15):
+            px(top, x, y0 + 5, OUTLINE)
+            px(top, x, y0 + 8, OUTLINE)
+        for y in range(5, 9):
+            px(top, X0 + 14, y0 + y, OUTLINE)
+        for x in range(X0 + 8, X0 + 11):
+            px(top, x, y0 + 6, OUTLINE)
+        return
     for x0 in (X0 + 2, X0 + 9):
         for x in range(x0, x0 + 5):
             px(top, x, y0 + 6, OUTLINE)
@@ -418,30 +439,52 @@ def glasses(mid, top, col, b):
 
 
 def cap(color):
-    def fn(mid, top, col, b):
+    def fn(mid, top, row, col, b):
         fill(top, X0, 1 + b, X0 + 15, 4 + b, color)
         fill(top, X0 + 2, 0 + b, X0 + 13, 0 + b, color)
         fill(top, X0 + 3, 5 + b, X0 + 12, 5 + b, shade(color, 0.7))
     return fn
 
 
-def apron(mid, top, col, b):
+def apron(mid, top, row, col, b):
     t = 15 + b
-    fill(mid, 9, t + 1, 14, t + 7, (252, 252, 252, 255))
-    fill(mid, 9, t + 7, 14, t + 7, (220, 220, 225, 255))
+    if row == 0:
+        fill(mid, 9, t + 1, 14, t + 7, (252, 252, 252, 255))
+        fill(mid, 9, t + 7, 14, t + 7, (220, 220, 225, 255))
+    elif row == 2:
+        fill(mid, 13, t + 1, 15, t + 7, (252, 252, 252, 255))
     fill(top, X0 + 1, 1 + b, X0 + 14, 3 + b, (255, 255, 255, 255))  # kerchief
     fill(top, X0 + 1, 3 + b, X0 + 14, 3 + b, (225, 225, 230, 255))
 
 
-def firefighter_gear(mid, top, col, b):
+def police_vest(mid, top, row, col, b):
+    """Neon-yellow traffic vest over the uniform jumper."""
+    t = 15 + b
+    x0, x1 = (8, 15) if row == 2 else (7, 16)
+    fill(mid, x0, t + 2, x1, t + 6, (214, 240, 70, 255))
+    fill(mid, x0, t + 4, x1, t + 4, (230, 234, 240, 255))
+
+
+def stethoscope(mid, top, row, col, b):
+    if row != 0:
+        return
+    t = 15 + b
+    for (x, y) in ((9, 0), (9, 1), (9, 2), (10, 3), (14, 0), (14, 1), (14, 2), (13, 3), (11, 4), (12, 4), (12, 5)):
+        px(mid, x, t + y, (60, 64, 80, 255))
+    px(mid, 12, t + 6, (190, 196, 210, 255))
+
+
+def firefighter_gear(mid, top, row, col, b):
     """Reflective stripes on the turnout coat and a red helmet with a visor."""
     t = 15 + b
-    fill(mid, 7, t + 5, 16, t + 5, (232, 236, 96, 255))
-    fill(mid, 7, t + 6, 16, t + 6, (190, 196, 200, 255))
+    x0, x1 = (8, 15) if row == 2 else (7, 16)
+    fill(mid, x0, t + 5, x1, t + 5, (232, 236, 96, 255))
+    fill(mid, x0, t + 6, x1, t + 6, (190, 196, 200, 255))
     red, dark = (214, 56, 44, 255), (150, 36, 30, 255)
     fill(top, X0, 1 + b, X0 + 15, 4 + b, red)
     fill(top, X0 + 2, 0 + b, X0 + 13, 0 + b, red)
-    fill(top, X0 + 6, 0 + b, X0 + 9, 4 + b, (240, 220, 90, 255))  # front badge
+    if row == 0:
+        fill(top, X0 + 6, 0 + b, X0 + 9, 4 + b, (240, 220, 90, 255))  # front badge
     fill(top, X0 - 1, 5 + b, X0 + 16, 5 + b, dark)  # brim
 
 
@@ -530,6 +573,19 @@ def make_npcs():
     human_npc("citizen", outfit(top="jumper", tie=None, pants=((110, 100, 90, 255), (86, 78, 70, 255))),
               (156, 112, 80), (214, 214, 220), 0, 0, glasses, skin=(240, 204, 170))
     human_npc("inspector", outfit(tie=(70, 120, 200, 255)), (250, 250, 252), (60, 50, 46), 1, 0, glasses)
+    # 11/18 요양원·경찰서·병원 사람들, 주차장의 교통 전문 변호사
+    human_npc("officer_nursing", outfit(top="vest", tie=None), (196, 150, 110), (90, 64, 50), 2, 1, glasses)
+    human_npc("caregiver", outfit(top="jumper", tie=None, pants=((236, 236, 240, 255), (206, 206, 214, 255))),
+              (246, 160, 180), (60, 44, 40), 4, 1)
+    human_npc("grandma", outfit(top="jumper", tie=None, pants=((120, 100, 130, 255), (96, 80, 104, 255))),
+              (170, 120, 190), (226, 226, 230), 2, 1, glasses, skin=(240, 206, 176))
+    human_npc("officer_police", outfit(tie=(40, 48, 80, 255)), (52, 70, 120), (40, 36, 36), 1, 0,
+              cap((36, 50, 96, 255)))
+    human_npc("police", outfit(top="jumper", tie=None, pants=((44, 56, 96, 255), (34, 44, 76, 255))),
+              (70, 96, 160), (36, 32, 32), 0, 0, combine(police_vest, cap((36, 50, 96, 255))))
+    human_npc("officer_hospital", outfit(tie=(60, 140, 140, 255)), (70, 150, 150), (60, 46, 40), 1, 0, glasses)
+    human_npc("doctor", outfit(tie=(70, 110, 190, 255)), (250, 250, 252), (50, 40, 38), 3, 1, stethoscope)
+    human_npc("wonmuncheol", outfit(tie=(120, 40, 50, 255)), (66, 68, 80), (86, 86, 92), 0, 0, glasses)
 
 
 # ------------------------------------------------------------------ tiles
@@ -545,6 +601,8 @@ TILES = [
     "kiosk", "flower_bed", "chalkboard",
     # 11/17 품질검사실
     "conveyor", "qc_station",
+    # 11/18 수요기관 추가: 요양원·경찰서·병원 외관
+    "facade_nursing", "facade_police", "facade_hospital",
 ]
 
 # Outdoor palette: bright and saturated, dark outlines (the cozy look of the reference video).
@@ -815,6 +873,12 @@ def make_tiles():
             tile_facade(img, x, (244, 246, 250, 255), (214, 220, 230, 255), band=(96, 184, 146, 255))
         elif name == "facade_center":
             tile_facade(img, x, (214, 206, 188, 255), (184, 174, 154, 255), band=(110, 132, 170, 255))
+        elif name == "facade_nursing":  # warm cream with a wood-brown band
+            tile_facade(img, x, (246, 226, 196, 255), (220, 196, 160, 255), band=(156, 110, 76, 255))
+        elif name == "facade_police":  # navy with a white band
+            tile_facade(img, x, (70, 96, 160, 255), (52, 72, 126, 255), band=(240, 244, 250, 255))
+        elif name == "facade_hospital":  # pale blue-gray with a red band
+            tile_facade(img, x, (220, 230, 240, 255), (190, 204, 220, 255), band=(214, 70, 70, 255))
         elif name == "glass_door":
             fill(img, x, 0, x + 15, 15, (196, 200, 210, 255))
             fill(img, x, 0, x + 15, 1, OUTLINE)
@@ -1290,6 +1354,58 @@ def make_title():
     cloud.save(OUT / "cloud.png")
 
 
+def make_extra_buildings():
+    """bld_<id>.png for destinations that are not on the title town (drive finish line)."""
+    def windows(d, img, x0, y0, x1, y1, cols, rows):
+        cw = (x1 - x0) // cols
+        rh = (y1 - y0) // rows
+        for cx in range(cols):
+            for ry in range(rows):
+                wx, wy = x0 + cx * cw + 2, y0 + ry * rh + 2
+                d.rectangle([wx, wy, wx + cw - 5, wy + rh - 5], fill=(246, 246, 250, 255), outline=OUTLINE)
+                fill(img, wx + 1, wy + 1, wx + cw - 6, wy + rh - 6, (150, 206, 246, 255))
+
+    # 요양원: low, wide, warm cream walls, brown roof, a ramp to the door
+    img = Image.new("RGBA", (64, 46), T)
+    d = ImageDraw.Draw(img)
+    d.rectangle([3, 16, 60, 45], fill=(246, 226, 196, 255), outline=OUTLINE)
+    d.polygon([(0, 17), (10, 6), (53, 6), (63, 17)], fill=(156, 110, 76, 255), outline=OUTLINE)
+    windows(d, img, 6, 19, 58, 34, 5, 1)
+    d.rectangle([26, 35, 37, 45], fill=(150, 206, 246, 255), outline=OUTLINE)
+    d.polygon([(38, 45), (38, 41), (50, 45)], fill=(200, 196, 186, 255), outline=OUTLINE)
+    for x in (8, 54):  # flower boxes
+        d.rectangle([x - 4, 41, x + 4, 45], fill=(140, 96, 60, 255), outline=OUTLINE)
+        for k in (-2, 1, 3):
+            px(img, x + k, 40, (255, 150, 176, 255))
+    img.save(OUT / "bld_nursing.png")
+
+    # 경찰서: navy walls, white band, blue-red light on the roof
+    img = Image.new("RGBA", (54, 54), T)
+    d = ImageDraw.Draw(img)
+    d.rectangle([2, 12, 51, 53], fill=(70, 96, 160, 255), outline=OUTLINE)
+    fill(img, 3, 13, 50, 16, (240, 244, 250, 255))
+    windows(d, img, 5, 18, 49, 40, 4, 2)
+    d.rectangle([20, 42, 33, 53], fill=(150, 206, 246, 255), outline=OUTLINE)
+    fill(img, 26, 42, 26, 53, OUTLINE)
+    d.rectangle([19, 4, 34, 11], fill=(230, 230, 236, 255), outline=OUTLINE)
+    fill(img, 21, 6, 25, 9, (60, 110, 230, 255))
+    fill(img, 28, 6, 32, 9, (230, 60, 60, 255))
+    img.save(OUT / "bld_police.png")
+
+    # 병원: tall pale building, red band, red cross sign
+    img = Image.new("RGBA", (56, 70), T)
+    d = ImageDraw.Draw(img)
+    d.rectangle([2, 6, 53, 69], fill=(220, 230, 240, 255), outline=OUTLINE)
+    fill(img, 3, 7, 52, 10, (214, 70, 70, 255))
+    windows(d, img, 5, 24, 51, 56, 4, 3)
+    d.rectangle([20, 11, 35, 22], fill=(250, 250, 250, 255), outline=OUTLINE)
+    fill(img, 26, 13, 29, 20, (214, 60, 60, 255))
+    fill(img, 23, 15, 32, 18, (214, 60, 60, 255))
+    d.rectangle([18, 58, 37, 69], fill=(150, 206, 246, 255), outline=OUTLINE)
+    fill(img, 27, 58, 27, 69, OUTLINE)
+    img.save(OUT / "bld_hospital.png")
+
+
 def make_race():
     """Racing minigame extras: a tintable rival truck, a box obstacle, a drink pickup."""
     rival = Image.new("RGBA", (18, 30), T)
@@ -1346,6 +1462,56 @@ def make_icons():
     icon("item_energybar.png", lambda im, d: (fill(im, 4, 2, 11, 14, (60, 170, 230, 255)),  # energy drink can
                                               fill(im, 4, 2, 11, 3, (210, 216, 226, 255)),
                                               fill(im, 6, 6, 9, 10, (250, 230, 80, 255))))
+
+
+# Order = PhoneMenu.APP_ICONS in scripts/ui/phone_menu.gd (append only).
+PHONE_APPS = ["task", "bag", "growth", "save", "sound", "title"]
+
+
+def make_phone_apps():
+    """Esc menu smartphone: one row of 24x24 app icons (rounded tile + white glyph)."""
+    S = 24
+    sheet = Image.new("RGBA", (S * len(PHONE_APPS), S), T)
+    W = (255, 255, 255, 255)
+    tiles = {"task": (66, 122, 230), "bag": (232, 150, 60), "growth": (70, 176, 104),
+             "save": (120, 96, 210), "sound": (236, 92, 120), "title": (96, 106, 128)}
+    for i, name in enumerate(PHONE_APPS):
+        img = Image.new("RGBA", (S, S), T)
+        d = ImageDraw.Draw(img)
+        base = tiles[name] + (255,)
+        d.rounded_rectangle([1, 1, S - 2, S - 2], radius=6, fill=base, outline=OUTLINE)
+        d.rounded_rectangle([2, 2, S - 3, 8], radius=4, fill=shade(base, 1.15))
+        fill(img, 3, 6, S - 4, 8, base)
+        if name == "task":  # clipboard with lines
+            d.rectangle([7, 5, 16, 18], fill=W, outline=OUTLINE)
+            d.rectangle([9, 4, 14, 6], fill=(200, 200, 210, 255), outline=OUTLINE)
+            for y in (9, 12, 15):
+                fill(img, 9, y, 14, y, base)
+        elif name == "bag":  # briefcase
+            d.rectangle([5, 9, 18, 18], fill=W, outline=OUTLINE)
+            d.rectangle([9, 6, 14, 9], outline=OUTLINE)
+            fill(img, 5, 13, 18, 13, shade(base, 0.8))
+            fill(img, 11, 12, 12, 14, base)
+        elif name == "growth":  # rising bars + arrow
+            for k, h in enumerate((4, 7, 10)):
+                d.rectangle([6 + k * 4, 18 - h, 8 + k * 4, 18], fill=W, outline=OUTLINE)
+            d.line([(6, 10), (11, 7), (17, 4)], fill=(255, 236, 120, 255), width=1)
+            fill(img, 15, 4, 17, 4, (255, 236, 120, 255))
+            fill(img, 17, 4, 17, 6, (255, 236, 120, 255))
+        elif name == "save":  # floppy disk
+            d.rectangle([6, 5, 17, 18], fill=W, outline=OUTLINE)
+            d.rectangle([8, 5, 15, 9], fill=(190, 196, 210, 255), outline=OUTLINE)
+            d.rectangle([8, 12, 15, 18], fill=shade(base, 1.3), outline=OUTLINE)
+        elif name == "sound":  # speaker + waves
+            d.polygon([(5, 10), (8, 10), (12, 6), (12, 17), (8, 13), (5, 13)], fill=W, outline=OUTLINE)
+            d.arc([11, 8, 16, 15], -60, 60, fill=W)
+            d.arc([11, 5, 19, 18], -60, 60, fill=W)
+        elif name == "title":  # little house
+            d.polygon([(5, 12), (12, 5), (19, 12)], fill=W, outline=OUTLINE)
+            d.rectangle([7, 12, 17, 18], fill=W, outline=OUTLINE)
+            d.rectangle([11, 14, 13, 18], fill=base, outline=OUTLINE)
+        sheet.paste(img, (i * S, 0))
+    sheet.save(OUT / "phone_apps.png")
 
 
 def circle_button(name, size, label_col):
@@ -1420,8 +1586,10 @@ if __name__ == "__main__":
     make_products()
     make_event_scenes()
     make_title()
+    make_extra_buildings()
     make_race()
     make_icons()
+    make_phone_apps()
     make_touch_ui()
     if len(sys.argv) > 1:
         preview(sys.argv[1])

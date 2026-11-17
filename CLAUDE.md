@@ -25,7 +25,7 @@
 - 기준 해상도 640×360, stretch `viewport` + aspect `expand`. 픽셀아트는 Nearest 필터, 정수 배율.
 - 한글은 반드시 번들 폰트(갈무리, `UiTheme`)로 표시한다. 웹에는 시스템 폰트가 없어서 기본 폰트로는 한글이 네모로 깨진다.
   Galmuri11은 12px 기준(12, 24), Galmuri9는 10px.
-- 입력은 **액션만** 읽는다(`move_*`, `interact`, `cancel`, `quick_item`, `run`). 액션은 `scripts/autoload/input_setup.gd`에서 코드로 등록한다. 터치 UI는 같은 액션을 누른다.
+- 입력은 **액션만** 읽는다(`move_*`, `interact`, `cancel`, `quick_item`, `run`, 하단 바 단축키 `menu_task` B·`menu_bag` I·`menu_growth` C·`menu_save` U). 액션은 `scripts/autoload/input_setup.gd`에서 코드로 등록한다. 터치 UI는 같은 액션을 누른다.
 - 캐릭터 이동은 상하좌우 4방향만. 대각선 금지.
 - 정적 타이핑을 쓴다. `Dictionary` 값처럼 타입이 Variant인 식에는 `:=` 대신 `var x: int = ...`로 명시한다.
 - 플레이어에게 보이는 문장은 `scripts/systems/story.gd`와 `scripts/data/task_data.gd`에만 둔다. 말투는 해요체.
@@ -122,16 +122,25 @@ scripts/world/
   maps/school_map.gd     수요기관: 한빛초등학교 (28x18)  ┐ 위쪽 건물 안, 외관 1줄(간판·유리문),
   maps/fire_map.gd       수요기관: 한빛소방서 (28x14)    │ 아래쪽 앞마당(꽃 잔디·납품 차량 arrival),
   maps/clinic_map.gd     수요기관: 한빛보건소 (28x14)    │ 맨 아래 출구 -> 청사 주차장
-  maps/center_map.gd     수요기관: 한빛동 행정복지센터 (28x14) ┘
+  maps/center_map.gd     수요기관: 한빛동 행정복지센터 (28x14) │
+  maps/nursing_map.gd    수요기관: 한빛시립요양원 (28x14)  │ (11/18 추가 3곳, 외관 타일 6·7·8)
+  maps/police_map.gd     수요기관: 한빛경찰서 (28x14)     │
+  maps/hospital_map.gd   수요기관: 한빛시립병원 (28x14)   ┘
   maps/lab_map.gd        품질검사실 (18x8, 2배 확대): 청사 로비 왼쪽 벽 문, 검사대(J)·컨베이어·서 검사관
-scripts/actors/          player.gd(4방향 이동·달리기·상호작용), npc.gd,
+scripts/actors/          player.gd(4방향 이동·달리기·상호작용),
+                         npc.gd(CharacterBody2D. 집 칸에서 3칸 안을 한 칸씩 4방향으로 돌아다님. 김 팀장·식당 이모·서 검사관·
+                         담당자(receiver)는 제자리 = `Story.STATIONARY`/`npc_wanders()`. 벽·출구·스폰·오브젝트 주변 칸은
+                         `MapBase.npc_can_enter()`가 막는다. 대화·창이 열리면 멈춤),
                          character_visual.gd(피부·옷 바탕·옷 색·얼굴·머리 5레이어, 색은 틴트)
 scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd,
                          procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과),
                          event_window.gd(짧은 이벤트 장면 창: carry = 일 돕기, inspect = 검사관 결과)
+                         phone_menu.gd(Esc 메뉴 = 스마트폰 홈 화면: 시계·체력 배터리·앱 6개(phone_apps.png)·오늘 할 일 알림)
                          title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물, 지붕 위 타이틀 간판
 scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn): 조달청 -> 수요기관 건물까지 제한 시간 안에 도착(경주 아님).
-                                 자동 가속, ←→ 핸들, Shift 드리프트(게이지 -> 부스터), Q 에너지 드링크 부스터. 장애물은 오가는 차·공사 울타리.
+                                 자동 가속, ←→ 핸들, ↓ 감속(BRAKE_SPEED), Shift 드리프트(게이지 -> 부스터), Q 에너지 드링크 부스터. 장애물은 오가는 차·공사 울타리.
+                                 공정 규칙(11/18): 맞은편 차는 적고 느리며 멀리서 나오고 가까우면 "!", 추월 중인 플레이어와 마주치면 갓길로 비켜 감속,
+                                 울타리 앞에서는 플레이어가 지나갈 때까지 대기. 앞차는 울타리 구간을 서둘러 빠져나감. 울타리끼리 550px 이상.
                                  일찍 도착하면 별 보너스, 늦으면 task.late(보고 때 평판 -4). 진행도는 현재 위치 근처만 찾는다.
                                  출발·도착 건물 그림은 assets bld_<id>.png(tools/gen_placeholders.py가 타이틀 마을에서 잘라 냄)
 scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
@@ -170,10 +179,15 @@ streamlit_app.py, requirements.txt, .streamlit/, deploy/   Streamlit Community C
 - 수요기관 추가: 맵(위 방식, `signs()`·`parked_truck()`·arrival 스폰·맨 아래 출구) + `Story.DESTINATIONS`에
   이름·담당자(receiver)·대사 + `Story.NPCS`·`tools/gen_placeholders.py`의 `human_npc`로 사람 추가.
   담당자가 카운터 뒤면 `npcs()` 항목에 `reach`, 테스트용 `from`(말 거는 칸)을 준다.
-- 업무 추가: `TaskData.TASKS`에 항목 추가(`destination`, `required`, `fragile` 포함). 업체 3곳은 "기준을 넘는 가장 싼 업체"가
+  운전 코스는 `TrackData.DESTINATION_TRACKS`, 도착 건물 그림은 `bld_<id>.png`(`make_extra_buildings()`),
+  테스트는 `tests/smoke_loop.gd`의 `PLACES`. 업무는 장소를 먼저 고른다(`TaskData.pick_index`, 직전 장소 제외).
+- 업무 추가: `TaskData.TASKS`의 **맨 뒤에** 항목 추가(저장 파일이 업무 번호를 기억한다)(`destination`, `required`, `fragile` 포함). 업체 3곳은 "기준을 넘는 가장 싼 업체"가
   업무마다 달라지게 값을 잡는다.
 - 업그레이드 추가: `TaskData.UPGRADES` + 효과는 `GameState.upgrade_level(id)`를 읽는 곳(Story, 운전)에 넣는다.
 - NPC 추가: `Story.NPCS`에 이름·스프라이트·색, 맵의 `npcs()`에 위치, `Story.talk()`에 대화.
+  기본은 돌아다닌다. 제자리에 두려면 `Story.STATIONARY`에 넣거나 `npcs()` 항목에 `"wander": false`.
+  사람 스프라이트는 플레이어와 같은 3x4 걷기 시트(`human_npc`), 마스코트는 1줄 2프레임.
+- 원문철 변호사(청사 주차장): `Story.DASHCAM_QUIZ` 블랙박스 퀴즈. 운전 상식만 쓰고 법 조문·숫자는 넣지 않는다.
 - 아이템 추가: `ItemDB.ITEMS` + 아이콘, 판매처는 `Story.VENDING_ITEMS`. 식사 메뉴는 `ItemDB.MEALS` + 3프레임 음식 그림, 순서는 `Story.TICKET_MEALS`.
 - 외형 추가: 헤어·옷은 `tools/gen_placeholders.py`의 `HAIR_*`/`OUTFITS`에 그림을 추가하고
   `GameState.HAIR_STYLE_COUNT`/`OUTFIT_STYLE_COUNT`, `Story.LOOK_NAMES`를 맞춘다. 색은 `GameState`의 색 배열에 추가.

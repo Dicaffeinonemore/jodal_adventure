@@ -27,6 +27,7 @@ const REPEAT_MS := 60  # the same effect is not restarted faster than this
 const POOL := 8
 const MAP_BGM := {
 	"home": "home", "office": "town", "school": "town", "fire": "town", "clinic": "town", "center": "town", "lab": "town",
+	"nursing": "town", "police": "town", "hospital": "town",
 }
 
 var mode := Mode.ALL
