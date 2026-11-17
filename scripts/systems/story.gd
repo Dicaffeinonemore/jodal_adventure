@@ -235,6 +235,9 @@ func on_drive_finished(cargo: int) -> void:
 
 
 func play_intro() -> void:
+	# The player may already be talking to someone (the intro starts after a delay).
+	while _busy or Dialogue.is_open:
+		await get_tree().process_frame
 	_busy = true
 	var me := GameState.player_name
 	await Dialogue.say(npc_name("dari"), [
