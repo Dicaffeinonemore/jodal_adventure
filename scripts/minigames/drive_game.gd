@@ -6,8 +6,14 @@ extends Node2D
 ## Controls: move_left / move_right (keys, touch joystick) or tap the left /
 ## right half of the screen. Quick item (Q / touch) uses an energy bar.
 ## Bad condition (fatigue >= 70 or too much coffee) makes the truck drift.
+## Pickups: stars pay a bonus (Story.STAR_BONUS), repair kits restore cargo.
+## Urgent tasks are shorter but busier; fragile cargo and the truck upgrade
+## scale damage (Story.cargo_damage_mult()).
 
-const DURATION := 45.0
+const DURATION := 25.0
+const URGENT_DURATION := 20.0
+const PICKUP_CHANCE := 0.35
+const REPAIR_AMOUNT := 10
 const LANES := 3
 const LANE_W := 44.0
 const BASE_SPEED := 120.0
@@ -24,11 +30,17 @@ const OBSTACLES := {
 	"car": {"tex": "res://assets/sprites/placeholder/car_npc.png", "damage": 20, "drift": 0.45},
 	"cone": {"tex": "res://assets/sprites/placeholder/cone.png", "damage": 10, "drift": 0.0},
 	"bump": {"tex": "res://assets/sprites/placeholder/speed_bump.png", "damage": 8, "drift": 0.0},
+	"star": {"tex": "res://assets/sprites/placeholder/pickup_star.png", "damage": 0, "drift": 0.0},
+	"repair": {"tex": "res://assets/sprites/placeholder/pickup_repair.png", "damage": 0, "drift": 0.0},
 }
 
 enum State { COUNTDOWN, DRIVING, FINISHED }
 
 var cargo := 100
+var stars := 0
+var _duration := DURATION
+var _density := 1.0
+var _damage_mult := 1.0
 var _state := State.COUNTDOWN
 var _elapsed := 0.0
 var _speed := BASE_SPEED
@@ -48,12 +60,17 @@ var _obstacles: Array[Dictionary] = []  # {"node": Sprite2D, "kind": String, "la
 var _ui: CanvasLayer
 var _progress: ProgressBar
 var _cargo_label: Label
+var _star_label: Label
 var _center_label: Label
 
 
 func _ready() -> void:
 	GameState.reset_input_locks()
 	_rng.randomize()
+	if Story.is_urgent():
+		_duration = URGENT_DURATION
+		_density = 0.7
+	_damage_mult = Story.cargo_damage_mult()
 	_truck = Sprite2D.new()
 	_truck.texture = load("res://assets/sprites/placeholder/car_player.png") as Texture2D
 	_truck.z_index = 5
@@ -92,7 +109,7 @@ func _process(delta: float) -> void:
 
 func _drive(delta: float) -> void:
 	_elapsed += delta
-	var t := clampf(_elapsed / DURATION, 0.0, 1.0)
+	var t := clampf(_elapsed / _duration, 0.0, 1.0)
 	_speed = lerpf(BASE_SPEED, MAX_SPEED, t)
 	_scroll = fmod(_scroll + _speed * delta, 32.0)
 	_progress.value = t * 100.0
@@ -100,9 +117,9 @@ func _drive(delta: float) -> void:
 	_truck.modulate.a = 0.4 if _invuln > 0.0 and fmod(_invuln, 0.2) < 0.1 else 1.0
 
 	_spawn_timer -= delta
-	if _spawn_timer <= 0.0 and _elapsed < DURATION - 2.0:
+	if _spawn_timer <= 0.0 and _elapsed < _duration - 2.0:
 		_spawn_obstacle()
-		_spawn_timer = _rng.randf_range(SPAWN_MIN, SPAWN_MAX) * lerpf(1.0, 0.7, t)
+		_spawn_timer = _rng.randf_range(SPAWN_MIN, SPAWN_MAX) * lerpf(1.0, 0.7, t) * _density
 
 	_update_drowsiness(delta)
 
@@ -116,12 +133,17 @@ func _drive(delta: float) -> void:
 			node.queue_free()
 			_obstacles.remove_at(i)
 			continue
-		if _invuln <= 0.0 and truck_rect.intersects(_rect_of(node).grow(-1)):
-			_hit(int(info["damage"]), str(ob["kind"]))
+		var kind := str(ob["kind"])
+		var pickup := kind == "star" or kind == "repair"
+		if (pickup or _invuln <= 0.0) and truck_rect.intersects(_rect_of(node).grow(-1)):
+			if pickup:
+				_collect(kind)
+			else:
+				_hit(int(info["damage"]), kind)
 			node.queue_free()
 			_obstacles.remove_at(i)
 
-	if _elapsed >= DURATION:
+	if _elapsed >= _duration:
 		_finish()
 
 
@@ -143,6 +165,13 @@ func _spawn_obstacle() -> void:
 	var kinds := ["car", "car", "cone", "bump"]
 	var kind: String = kinds[_rng.randi() % kinds.size()]
 	var lane := _rng.randi() % LANES
+	_spawn(kind, lane)
+	if _rng.randf() < PICKUP_CHANCE:
+		var other := (lane + 1 + _rng.randi() % (LANES - 1)) % LANES
+		_spawn("repair" if cargo < 100 and _rng.randf() < 0.25 else "star", other)
+
+
+func _spawn(kind: String, lane: int) -> void:
 	var node := Sprite2D.new()
 	node.texture = load(str(OBSTACLES[kind]["tex"])) as Texture2D
 	node.position = Vector2(_lane_x(lane), -30)
@@ -150,7 +179,21 @@ func _spawn_obstacle() -> void:
 	_obstacles.append({"node": node, "kind": kind, "lane": lane})
 
 
+func _collect(kind: String) -> void:
+	if kind == "star":
+		stars += 1
+		GameState.add_money(Story.STAR_BONUS)
+		GameState.log_add("money", Story.STAR_BONUS)
+		_star_label.text = "별 %d개 (+%s원)" % [stars, Korean.comma(stars * Story.STAR_BONUS)]
+		_flash_text("반짝! +%d원" % Story.STAR_BONUS, UiTheme.COLOR_WARN)
+	else:
+		cargo = mini(100, cargo + REPAIR_AMOUNT)
+		_cargo_label.text = "화물 상태 %d%%" % cargo
+		_flash_text("응급 수리! 화물 +%d" % REPAIR_AMOUNT, UiTheme.COLOR_GOOD)
+
+
 func _hit(damage: int, kind: String) -> void:
+	damage = roundi(damage * _damage_mult)
 	if GameState.condition() == GameState.Condition.GOOD:
 		damage = roundi(damage * 0.8)
 	cargo = maxi(0, cargo - damage)
@@ -179,7 +222,7 @@ func _finish() -> void:
 	_state = State.FINISHED
 	_center_label.text = "도착! 화물 상태 %d%%" % cargo
 	await get_tree().create_timer(1.5).timeout
-	Story.on_drive_finished(cargo)
+	Story.on_drive_finished(cargo, stars)
 
 
 # ---------------------------------------------------------------- input
@@ -256,6 +299,15 @@ func _build_ui() -> void:
 	vb.add_child(_progress)
 	_cargo_label = UiTheme.make_label("화물 상태 100%", UiTheme.SIZE_SMALL)
 	vb.add_child(_cargo_label)
+	_star_label = UiTheme.make_label("별 0개", UiTheme.SIZE_SMALL, UiTheme.COLOR_WARN)
+	vb.add_child(_star_label)
+	var tags := PackedStringArray()
+	if Story.is_urgent():
+		tags.append("긴급")
+	if bool(Story.current_task().get("fragile", false)):
+		tags.append("파손 주의")
+	if not tags.is_empty():
+		vb.add_child(UiTheme.make_label("[" + " · ".join(tags) + "]", UiTheme.SIZE_SMALL, UiTheme.COLOR_BAD))
 	vb.add_child(UiTheme.make_label("컨디션 " + GameState.condition_label(), UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM))
 
 	var hint_text := "← → 차선 변경 / Q 에너지바"

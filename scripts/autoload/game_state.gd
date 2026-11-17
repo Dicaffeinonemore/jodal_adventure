@@ -9,24 +9,30 @@ signal inventory_changed
 signal task_changed
 signal forced_leave
 signal day_started(day: int)
+## Floating text above the player (rewards, costs). HUD listens.
+signal popup(text: String, color: Color)
 
 enum Condition { GOOD, NORMAL, BAD }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
 
 # --- balancing (initial values; tune during the 11/21 playtest) ---
 const FATIGUE_MAX := 100
 const FATIGUE_BAD_AT := 70
 const COFFEE_LIMIT := 3
 const DAILY_PAY := 30000
+const PAY_PER_RANK := 10000
+const WAKE_MINUTES := 450  # 07:30 at home
+const WORK_START := 540  # 09:00 at the office
+const WORK_END := 1080  # 18:00
 const START_MONEY := 20000
 const START_BUDGET := 1000  # 팀 예산, 만원 단위
 const RANKS: Array[String] = ["신입", "주무관", "사무관", "서기관"]
 const RANK_EXP: Array[int] = [0, 100, 300, 700]
 
 const HAIR_COLORS: Array[Color] = [Color("3a2f2f"), Color("8a5a3a"), Color("e0b060"), Color("6b7bd0")]
-const OUTFIT_COLORS: Array[Color] = [Color("f5f5f5"), Color("3c4d8c"), Color("8c9aa8"), Color("c98a6a")]
+const OUTFIT_COLORS: Array[Color] = [Color("3c4d8c"), Color("4a4a52"), Color("c98a6a"), Color("f0f0f0")]
 const HAIR_STYLE_COUNT := 2
 
 # --- saved state ---
@@ -49,11 +55,25 @@ var meal_bonus_today := false
 var inventory: Dictionary = {}  # item_id -> count
 var flags: Dictionary = {}  # story flags, e.g. "intro_done"
 var task: Dictionary = {}  # current task; shape documented in Story
+var map_id := "home"  # map the player is on (where "이어서 출근하기" resumes)
+var minutes := WAKE_MINUTES  # clock, minutes since midnight
+var day_over := false  # left work; next step is sleeping at home
+var upgrades: Dictionary = {}  # upgrade id -> level (TaskData.UPGRADES)
+var day_log: Dictionary = {}  # today's totals for the evening summary
+var last_task_index := -1
+var fridge_day := 0
+var cooler_day := 0
 
 # --- session-only state ---
 var force_touch_ui := false
+var editing_look := false  # character screen opened from the wardrobe
+var rng := RandomNumberGenerator.new()
 var _input_locks := 0
 var _web_touch := -1  # cached browser answer: -1 unknown, 0 no, 1 yes
+
+
+func _ready() -> void:
+	rng.randomize()
 
 
 # ---------------------------------------------------------------- new game
@@ -76,6 +96,14 @@ func new_game(p_name: String, p_hair_style: int, p_hair_color: int, p_outfit_col
 	inventory = {"coffee": 1}
 	flags = {}
 	task = {}
+	map_id = "home"
+	minutes = WAKE_MINUTES
+	day_over = false
+	upgrades = {}
+	day_log = {}
+	last_task_index = -1
+	fridge_day = 0
+	cooler_day = 0
 	stats_changed.emit()
 	inventory_changed.emit()
 	task_changed.emit()
@@ -164,6 +192,11 @@ func remove_item(id: String, count: int = 1) -> bool:
 	return true
 
 
+func add_money(amount: int) -> void:
+	money += amount
+	stats_changed.emit()
+
+
 func spend_money(amount: int) -> bool:
 	if money < amount:
 		return false
@@ -186,17 +219,56 @@ func add_rewards(budget_delta: int, reputation_delta: int, exp_delta: int) -> bo
 	return promoted
 
 
+func spend_budget(amount: int) -> bool:
+	if budget < amount:
+		return false
+	budget -= amount
+	stats_changed.emit()
+	return true
+
+
 func rank_name() -> String:
 	return RANKS[rank]
 
 
+## Experience needed for the next rank, or -1 at the top rank.
+func next_rank_exp() -> int:
+	return RANK_EXP[rank + 1] if rank + 1 < RANKS.size() else -1
+
+
+func daily_pay() -> int:
+	return DAILY_PAY + PAY_PER_RANK * rank
+
+
+func upgrade_level(id: String) -> int:
+	return int(upgrades.get(id, 0))
+
+
+func log_add(key: String, amount: int) -> void:
+	day_log[key] = int(day_log.get(key, 0)) + amount
+
+
+func advance_clock(mins: int) -> void:
+	minutes += mins
+	stats_changed.emit()
+
+
+func clock_text() -> String:
+	var m := mini(minutes, 23 * 60 + 59)
+	return "%02d:%02d" % [m / 60, m % 60]
+
+
+## Sleeping: the next morning starts at home.
 func end_day() -> void:
 	day += 1
 	tasks_done_today = 0
 	fatigue = 0
 	coffee_today = 0
 	meal_bonus_today = false
-	money += DAILY_PAY
+	money += daily_pay()
+	minutes = WAKE_MINUTES
+	day_over = false
+	day_log = {}
 	stats_changed.emit()
 	fatigue_changed.emit(fatigue)
 	day_started.emit(day)
@@ -260,6 +332,14 @@ func save_game() -> void:
 		"inventory": inventory,
 		"flags": flags,
 		"task": task,
+		"map_id": map_id,
+		"minutes": minutes,
+		"day_over": day_over,
+		"upgrades": upgrades,
+		"day_log": day_log,
+		"last_task_index": last_task_index,
+		"fridge_day": fridge_day,
+		"cooler_day": cooler_day,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
@@ -298,6 +378,14 @@ func load_game() -> bool:
 	inventory = _int_values(d.get("inventory", {}))
 	flags = d.get("flags", {})
 	task = _normalize_task(d.get("task", {}))
+	map_id = str(d.get("map_id", "office"))
+	minutes = int(d.get("minutes", WORK_START))
+	day_over = bool(d.get("day_over", false))
+	upgrades = _int_values(d.get("upgrades", {}))
+	day_log = _int_values(d.get("day_log", {}))
+	last_task_index = int(d.get("last_task_index", -1))
+	fridge_day = int(d.get("fridge_day", 0))
+	cooler_day = int(d.get("cooler_day", 0))
 	stats_changed.emit()
 	inventory_changed.emit()
 	task_changed.emit()
@@ -319,7 +407,7 @@ func _normalize_task(src: Variant) -> Dictionary:
 	if typeof(src) != TYPE_DICTIONARY:
 		return {}
 	var t: Dictionary = (src as Dictionary).duplicate()
-	for key: String in ["index", "step", "vendor", "cargo"]:
+	for key: String in ["index", "step", "vendor", "cargo", "discount", "stars"]:
 		if t.has(key):
 			t[key] = int(t[key])
 	return t

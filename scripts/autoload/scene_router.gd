@@ -4,12 +4,14 @@ extends Node
 
 const TITLE := "res://scenes/title/title.tscn"
 const CHARACTER_CREATE := "res://scenes/character_create/character_create.tscn"
+const HOME := "res://scenes/maps/home.tscn"
 const OFFICE := "res://scenes/maps/office.tscn"
 const SCHOOL := "res://scenes/maps/school.tscn"
 const DRIVE := "res://scenes/minigames/drive.tscn"
 
 ## Map id (used in task data) -> scene path.
 const MAPS := {
+	"home": HOME,
 	"office": OFFICE,
 	"school": SCHOOL,
 }
@@ -54,4 +56,4 @@ func goto(path: String, spawn: String = "") -> void:
 
 
 func goto_map(map_id: String, spawn: String = "") -> void:
-	await goto(str(MAPS.get(map_id, OFFICE)), spawn)
+	await goto(str(MAPS.get(map_id, HOME)), spawn)

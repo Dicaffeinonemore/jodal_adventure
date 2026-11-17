@@ -87,7 +87,7 @@ func _input(event: InputEvent) -> void:
 	var view := get_viewport().get_visible_rect().size
 	if event is InputEventScreenTouch:
 		var st := event as InputEventScreenTouch
-		if st.pressed and _joy_touch == -1 and st.position.x < view.x * JOY_ZONE_WIDTH and st.position.y > view.y * 0.25:
+		if st.pressed and _joy_touch == -1 and st.position.x < view.x * JOY_ZONE_WIDTH and st.position.y > view.y * 0.25 				and not _on_menu_bar(st.position):
 			_joy_touch = st.index
 			_joy_center = st.position
 			_joy_base.position = st.position
@@ -98,6 +98,12 @@ func _input(event: InputEvent) -> void:
 		var sd := event as InputEventScreenDrag
 		if sd.index == _joy_touch:
 			_update_joystick(sd.position)
+
+
+## Taps on the HUD's bottom menu bar must not start the joystick.
+func _on_menu_bar(pos: Vector2) -> bool:
+	var hud := get_tree().get_first_node_in_group("hud")
+	return hud != null and (hud.call("menu_bar_rect") as Rect2).grow(4).has_point(pos)
 
 
 func _update_joystick(pos: Vector2) -> void:

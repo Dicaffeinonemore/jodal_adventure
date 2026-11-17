@@ -91,7 +91,7 @@ func _ready() -> void:
 	_toast_box = VBoxContainer.new()
 	_toast_box.anchor_left = 0.5
 	_toast_box.anchor_right = 0.5
-	_toast_box.offset_top = 44
+	_toast_box.offset_top = 50  # below the HUD top bar and objective
 	_toast_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast_box.alignment = BoxContainer.ALIGNMENT_BEGIN

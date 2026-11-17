@@ -26,7 +26,12 @@ func _ready() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
-	var title := UiTheme.make_label("출입증 발급", UiTheme.SIZE_LARGE, UiTheme.COLOR_BORDER, true)
+	if GameState.editing_look:
+		_hair_style = GameState.hair_style
+		_hair_color = GameState.hair_color
+		_outfit_color = GameState.outfit_color
+	var title_text := "옷장" if GameState.editing_look else "출입증 발급"
+	var title := UiTheme.make_label(title_text, UiTheme.SIZE_LARGE, UiTheme.COLOR_BORDER, true)
 	title.position = Vector2(24, 14)
 	add_child(title)
 
@@ -65,6 +70,8 @@ func _ready() -> void:
 	_name_edit = LineEdit.new()
 	_name_edit.max_length = MAX_NAME
 	_name_edit.placeholder_text = "이름을 입력하세요"
+	if GameState.editing_look:
+		_name_edit.text = GameState.player_name
 	_name_edit.custom_minimum_size = Vector2(0, 24)
 	if _use_browser_prompt():
 		_name_edit.editable = false
@@ -76,7 +83,7 @@ func _ready() -> void:
 	form.add_child(_option_row("옷 색", "outfit_color"))
 
 	var go := Button.new()
-	go.text = "출근하기"
+	go.text = "이대로 할게요" if GameState.editing_look else "출근 준비 끝!"
 	go.custom_minimum_size = Vector2(0, 28)
 	go.pressed.connect(_on_confirm)
 	form.add_child(go)
@@ -160,6 +167,15 @@ func _on_confirm() -> void:
 	if player_name.is_empty():
 		Dialogue.toast("이름을 입력해 주세요.", UiTheme.COLOR_WARN)
 		return
+	if GameState.editing_look:
+		GameState.editing_look = false
+		GameState.player_name = player_name
+		GameState.hair_style = _hair_style
+		GameState.hair_color = _hair_color
+		GameState.outfit_color = _outfit_color
+		GameState.save_game()
+		SceneRouter.goto(SceneRouter.HOME, "wardrobe")
+		return
 	GameState.new_game(player_name, _hair_style, _hair_color, _outfit_color)
 	GameState.save_game()
-	SceneRouter.goto(SceneRouter.OFFICE, "entrance")
+	SceneRouter.goto(SceneRouter.HOME, "bed")

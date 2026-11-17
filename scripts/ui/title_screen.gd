@@ -6,6 +6,7 @@ var _prompt: Label
 var _buttons: VBoxContainer
 var _started := false
 var _t := 0.0
+var _cast: Array[AtlasTexture] = []
 
 
 func _ready() -> void:
@@ -34,9 +35,24 @@ func _ready() -> void:
 	title.add_theme_color_override("font_outline_color", Color("0d1226"))
 	title.add_theme_constant_override("outline_size", 6)
 	center.add_child(title)
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 30)
-	center.add_child(spacer)
+	# The cast, idling (2-frame NPC sheets)
+	var cast := HBoxContainer.new()
+	cast.alignment = BoxContainer.ALIGNMENT_CENTER
+	cast.add_theme_constant_override("separation", 12)
+	cast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(cast)
+	for id: String in ["narumi", "team_leader", "dari"]:
+		var at := AtlasTexture.new()
+		at.atlas = load(Story.npc_sprite(id)) as Texture2D
+		at.region = Rect2(0, 0, 24, 32)
+		_cast.append(at)
+		var tr := TextureRect.new()
+		tr.texture = at
+		tr.custom_minimum_size = Vector2(48, 64)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cast.add_child(tr)
 
 	_prompt = UiTheme.make_label("화면을 터치해서 출근하기", UiTheme.SIZE, UiTheme.COLOR_TEXT)
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -55,6 +71,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	for i in _cast.size():
+		_cast[i].region.position.x = 24.0 if fmod(_t + i * 0.3, 1.0) < 0.5 else 0.0
 	if not _started:
 		_prompt.modulate.a = 0.35 + 0.65 * absf(sin(_t * 2.5))
 
@@ -90,11 +108,13 @@ func _make_button(text: String) -> Button:
 
 
 func _on_new() -> void:
+	GameState.editing_look = false
 	SceneRouter.goto(SceneRouter.CHARACTER_CREATE)
 
 
 func _on_continue() -> void:
 	if GameState.load_game():
-		SceneRouter.goto(SceneRouter.OFFICE, "entrance")
+		var spawn := {"home": "bed", "office": "entrance", "school": "arrival"}
+		SceneRouter.goto_map(GameState.map_id, str(spawn.get(GameState.map_id, "default")))
 	else:
 		Dialogue.toast("저장 데이터를 불러오지 못했어요.", UiTheme.COLOR_BAD)

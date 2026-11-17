@@ -1,12 +1,18 @@
 class_name Hud
 extends CanvasLayer
-## Top-of-screen status: rank/name/day, fatigue bar + condition (left),
-## money/budget/reputation (right), current objective (center).
-## Esc / touch B opens the menu (items, save, title).
+## Tycoon-style HUD.
+##   top bar:    day + clock | rank name | fatigue bar | condition ...... wallet | team budget | reputation
+##   below it:   current objective
+##   bottom bar: 업무 / 가방 / 성장 / 저장 buttons (Story.open_panel)
+## Rewards float up from the player (GameState.popup) and numbers count up.
+## Esc / touch B opens the full menu.
+
+const BAR_BUTTONS := [["업무", "task"], ["가방", "bag"], ["성장", "growth"], ["저장", "save"]]
+const COUNT_TIME := 0.6
 
 var _root: Control
-var _name_label: Label
 var _day_label: Label
+var _name_label: Label
 var _fatigue_bar: ProgressBar
 var _fatigue_label: Label
 var _condition_label: Label
@@ -14,11 +20,19 @@ var _money_label: Label
 var _budget_label: Label
 var _rep_label: Label
 var _objective: Label
+var _bar: HBoxContainer
 var _fill: StyleBoxFlat
+var _popups: Control
+var _popup_count := 0
+
+# displayed (animated) values
+var _shown := {"money": 0.0, "budget": 0.0, "rep": 0.0}
+var _tweens: Dictionary = {}
 
 
 func _ready() -> void:
 	layer = 10
+	add_to_group("hud")
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -26,79 +40,122 @@ func _ready() -> void:
 	UiTheme.apply(_root)
 	var m := UiTheme.edge_margin()
 
-	# left: who / when / fatigue
-	var left := PanelContainer.new()
-	left.position = Vector2(m, 6)
-	left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left.add_theme_stylebox_override("panel", UiTheme.panel_box(0.75))
-	_root.add_child(left)
-	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 2)
-	left.add_child(lv)
-	var top_row := HBoxContainer.new()
-	lv.add_child(top_row)
+	# ---- top bar
+	var top := PanelContainer.new()
+	top.anchor_right = 1.0
+	top.offset_left = m
+	top.offset_right = -m
+	top.offset_top = 4
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_theme_stylebox_override("panel", UiTheme.panel_box(0.85))
+	_root.add_child(top)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	top.add_child(row)
+
+	_day_label = _chip(row, UiTheme.COLOR_BORDER)
 	_name_label = UiTheme.make_label("", UiTheme.SIZE, UiTheme.COLOR_TEXT, true)
-	top_row.add_child(_name_label)
-	_day_label = UiTheme.make_label("", UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM)
-	top_row.add_child(_day_label)
-	var fat_row := HBoxContainer.new()
-	lv.add_child(fat_row)
-	fat_row.add_child(UiTheme.make_label("피로", UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM))
+	row.add_child(_name_label)
+	var fat := HBoxContainer.new()
+	fat.add_theme_constant_override("separation", 3)
+	row.add_child(fat)
+	fat.add_child(UiTheme.make_label("피로", UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM))
 	_fatigue_bar = ProgressBar.new()
-	_fatigue_bar.custom_minimum_size = Vector2(70, 8)
+	_fatigue_bar.custom_minimum_size = Vector2(56, 8)
 	_fatigue_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_fatigue_bar.max_value = GameState.FATIGUE_MAX
 	_fatigue_bar.show_percentage = false
 	_fill = (UiTheme.theme.get_stylebox("fill", "ProgressBar") as StyleBoxFlat).duplicate()
 	_fatigue_bar.add_theme_stylebox_override("fill", _fill)
-	fat_row.add_child(_fatigue_bar)
+	fat.add_child(_fatigue_bar)
 	_fatigue_label = UiTheme.make_label("", UiTheme.SIZE_SMALL)
-	fat_row.add_child(_fatigue_label)
+	fat.add_child(_fatigue_label)
 	_condition_label = UiTheme.make_label("", UiTheme.SIZE_SMALL)
-	lv.add_child(_condition_label)
+	row.add_child(_condition_label)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(spacer)
+	_money_label = UiTheme.make_label("", UiTheme.SIZE_SMALL, Color("ffe08a"))
+	row.add_child(_money_label)
+	_budget_label = UiTheme.make_label("", UiTheme.SIZE_SMALL, Color("9fe0a8"))
+	row.add_child(_budget_label)
+	_rep_label = UiTheme.make_label("", UiTheme.SIZE_SMALL, Color("9fd3ff"))
+	row.add_child(_rep_label)
 
-	# right: money / budget / reputation
-	var right := PanelContainer.new()
-	right.anchor_left = 1.0
-	right.anchor_right = 1.0
-	right.offset_right = -m
-	right.offset_top = 6
-	right.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right.add_theme_stylebox_override("panel", UiTheme.panel_box(0.75))
-	_root.add_child(right)
-	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 2)
-	right.add_child(rv)
-	_money_label = UiTheme.make_label("", UiTheme.SIZE_SMALL)
-	_budget_label = UiTheme.make_label("", UiTheme.SIZE_SMALL)
-	_rep_label = UiTheme.make_label("", UiTheme.SIZE_SMALL)
-	for l in [_money_label, _budget_label, _rep_label]:
-		(l as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		rv.add_child(l)
-
-	# center: objective
-	_objective = UiTheme.make_label("", UiTheme.SIZE, UiTheme.COLOR_BORDER)
+	# ---- objective
+	_objective = UiTheme.make_label("", UiTheme.SIZE, UiTheme.COLOR_WARN)
 	_objective.anchor_left = 0.5
 	_objective.anchor_right = 0.5
-	_objective.offset_top = 8
+	_objective.offset_top = 30
 	_objective.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_objective.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_objective.add_theme_constant_override("outline_size", 4)
 	_root.add_child(_objective)
 
+	# ---- bottom menu bar
+	_bar = HBoxContainer.new()
+	_bar.anchor_left = 0.5
+	_bar.anchor_right = 0.5
+	_bar.anchor_top = 1.0
+	_bar.anchor_bottom = 1.0
+	_bar.offset_top = -28
+	_bar.offset_bottom = -4
+	_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_bar.add_theme_constant_override("separation", 4)
+	_root.add_child(_bar)
+	for entry: Array in BAR_BUTTONS:
+		var b := Button.new()
+		b.text = str(entry[0])
+		b.custom_minimum_size = Vector2(56, 24)
+		b.focus_mode = Control.FOCUS_NONE  # Space/Enter stay with the game
+		b.pressed.connect(_on_bar_pressed.bind(str(entry[1])))
+		_bar.add_child(b)
+
+	_popups = Control.new()
+	_popups.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_popups.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_popups)
+
+	_shown["money"] = float(GameState.money)
+	_shown["budget"] = float(GameState.budget)
+	_shown["rep"] = float(GameState.reputation)
 	GameState.stats_changed.connect(_refresh)
 	GameState.task_changed.connect(_refresh)
 	GameState.inventory_changed.connect(_refresh)
+	GameState.popup.connect(_on_popup)
+	Dialogue.opened.connect(_refresh_bar)
+	Dialogue.closed.connect(_refresh_bar)
 	_refresh()
+	_refresh_bar()
+
+
+func _chip(parent: Control, color: Color) -> Label:
+	var l := UiTheme.make_label("", UiTheme.SIZE, color, true)
+	parent.add_child(l)
+	return l
+
+
+## Screen rect of the bottom bar, so the touch joystick can ignore taps on it.
+func menu_bar_rect() -> Rect2:
+	return _bar.get_global_rect() if _bar.visible else Rect2()
+
+
+func _refresh_bar() -> void:
+	_bar.visible = not Dialogue.is_open
+
+
+func _on_bar_pressed(panel: String) -> void:
+	if GameState.is_input_locked() or Story.is_busy():
+		return
+	Story.open_panel(panel)
 
 
 func _refresh() -> void:
-	_name_label.text = "%s %s " % [GameState.rank_name(), GameState.player_name]
-	_day_label.text = "%d일차" % GameState.day
+	_day_label.text = "%d일차 %s" % [GameState.day, GameState.clock_text()]
+	_name_label.text = "%s %s" % [GameState.rank_name(), GameState.player_name]
 	_fatigue_bar.value = GameState.fatigue
-	_fatigue_label.text = " %d" % GameState.fatigue
+	_fatigue_label.text = str(GameState.fatigue)
 	if GameState.fatigue >= GameState.FATIGUE_BAD_AT:
 		_fill.bg_color = UiTheme.COLOR_BAD
 	elif GameState.fatigue >= 40:
@@ -113,10 +170,63 @@ func _refresh() -> void:
 		cond_color = UiTheme.COLOR_BAD
 	_condition_label.text = "컨디션 " + GameState.condition_label()
 	_condition_label.add_theme_color_override("font_color", cond_color)
-	_money_label.text = "지갑 %s원" % Korean.comma(GameState.money)
-	_budget_label.text = "팀 예산 %s만원" % Korean.comma(GameState.budget)
-	_rep_label.text = "평판 %d" % GameState.reputation
-	_objective.text = Story.objective_text()
+	_count_to("money", GameState.money)
+	_count_to("budget", GameState.budget)
+	_count_to("rep", GameState.reputation)
+	var obj := Story.objective_text()
+	_objective.text = ("▶ " + obj.replace("목표: ", "")) if obj != "" else ""
+
+
+## Animates a number label from what it shows now to the new value.
+func _count_to(key: String, value: int) -> void:
+	if is_equal_approx(float(_shown[key]), float(value)):
+		_write(float(value), key)
+		return
+	if _tweens.has(key) and (_tweens[key] as Tween).is_valid():
+		(_tweens[key] as Tween).kill()
+	var tw := create_tween()
+	tw.tween_method(_write.bind(key), float(_shown[key]), float(value), COUNT_TIME)
+	_tweens[key] = tw
+
+
+func _write(v: float, key: String) -> void:
+	_shown[key] = v
+	var n := roundi(v)
+	match key:
+		"money":
+			_money_label.text = "지갑 %s원" % Korean.comma(n)
+		"budget":
+			_budget_label.text = "예산 %s만" % Korean.comma(n)
+		"rep":
+			_rep_label.text = "평판 %d" % n
+
+
+func _on_popup(text: String, color: Color) -> void:
+	var l := UiTheme.make_label(text, UiTheme.SIZE, color, true)
+	l.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.12))
+	l.add_theme_constant_override("outline_size", 4)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var pp := _player_screen_pos()
+	# Above the head, or below the feet when the player is near the top (HUD, toasts).
+	var dy := -48.0 - 14 * (_popup_count % 3) if pp.y > 130.0 else 8.0 + 14 * (_popup_count % 3)
+	var start := pp + Vector2(-60, dy)
+	l.position = start
+	l.custom_minimum_size = Vector2(120, 0)
+	_popups.add_child(l)
+	_popup_count += 1
+	var tw := l.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(l, "position:y", start.y - 26, 1.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(l, "modulate:a", 0.0, 0.5).set_delay(0.8)
+	tw.chain().tween_callback(l.queue_free)
+	tw.chain().tween_callback(func() -> void: _popup_count = maxi(0, _popup_count - 1))
+
+
+func _player_screen_pos() -> Vector2:
+	var p := get_tree().get_first_node_in_group("player") as Node2D
+	if p == null:
+		return get_viewport().get_visible_rect().size / 2.0
+	return p.get_global_transform_with_canvas().origin
 
 
 func _unhandled_input(event: InputEvent) -> void:
