@@ -1,0 +1,116 @@
+{
+ "frame_w": 32,
+ "frame_h": 32,
+ "columns": 4,
+ "rows": [
+  {
+   "row": 0,
+   "anim": "idle",
+   "dir": "down",
+   "frames": 2,
+   "ms": 400
+  },
+  {
+   "row": 1,
+   "anim": "idle",
+   "dir": "left",
+   "frames": 2,
+   "ms": 400
+  },
+  {
+   "row": 2,
+   "anim": "idle",
+   "dir": "right",
+   "frames": 2,
+   "ms": 400
+  },
+  {
+   "row": 3,
+   "anim": "idle",
+   "dir": "up",
+   "frames": 2,
+   "ms": 400
+  },
+  {
+   "row": 4,
+   "anim": "walk",
+   "dir": "down",
+   "frames": 4,
+   "ms": 150
+  },
+  {
+   "row": 5,
+   "anim": "walk",
+   "dir": "left",
+   "frames": 4,
+   "ms": 150
+  },
+  {
+   "row": 6,
+   "anim": "walk",
+   "dir": "right",
+   "frames": 4,
+   "ms": 150
+  },
+  {
+   "row": 7,
+   "anim": "walk",
+   "dir": "up",
+   "frames": 4,
+   "ms": 150
+  },
+  {
+   "row": 8,
+   "anim": "run",
+   "dir": "down",
+   "frames": 4,
+   "ms": 95
+  },
+  {
+   "row": 9,
+   "anim": "run",
+   "dir": "left",
+   "frames": 4,
+   "ms": 95
+  },
+  {
+   "row": 10,
+   "anim": "run",
+   "dir": "right",
+   "frames": 4,
+   "ms": 95
+  },
+  {
+   "row": 11,
+   "anim": "run",
+   "dir": "up",
+   "frames": 4,
+   "ms": 95
+  }
+ ],
+ "layer_order_bottom_to_top": [
+  "hair_back/M_spiky",
+  "hair_back/M_sidepart",
+  "hair_back/M_crop",
+  "hair_back/F_long",
+  "hair_back/F_ponytail",
+  "hair_back/F_bob",
+  "skin/skin_light",
+  "skin/skin_fair",
+  "skin/skin_tan",
+  "skin/skin_dark",
+  "clothes/M_tee_jeans",
+  "clothes/M_hoodie",
+  "clothes/M_adventurer",
+  "clothes/F_dress",
+  "clothes/F_blouse_skirt",
+  "clothes/F_adventurer",
+  "clothes/U_suit",
+  "hair/M_spiky",
+  "hair/M_sidepart",
+  "hair/M_crop",
+  "hair/F_long",
+  "hair/F_ponytail",
+  "hair/F_bob"
+ ]
+}

@@ -1,0 +1,447 @@
+{
+ "size": 32,
+ "frames": [
+  {
+   "anim": "idle",
+   "dir": "down",
+   "idx": 0,
+   "dur": 400
+  },
+  {
+   "anim": "idle",
+   "dir": "down",
+   "idx": 1,
+   "dur": 400
+  },
+  {
+   "anim": "idle",
+   "dir": "left",
+   "idx": 0,
+   "dur": 400
+  },
+  {
+   "anim": "idle",
+   "dir": "left",
+   "idx": 1,
+   "dur": 400
+  },
+  {
+   "anim": "idle",
+   "dir": "right",
+   "idx": 0,
+   "dur": 400
+  },
+  {
+   "anim": "idle",
+   "dir": "right",
+   "idx": 1,
+   "dur": 400
+  },
+  {
+   "anim": "idle",
+   "dir": "up",
+   "idx": 0,
+   "dur": 400
+  },
+  {
+   "anim": "idle",
+   "dir": "up",
+   "idx": 1,
+   "dur": 400
+  },
+  {
+   "anim": "walk",
+   "dir": "down",
+   "idx": 0,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "down",
+   "idx": 1,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "down",
+   "idx": 2,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "down",
+   "idx": 3,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "left",
+   "idx": 0,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "left",
+   "idx": 1,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "left",
+   "idx": 2,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "left",
+   "idx": 3,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "right",
+   "idx": 0,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "right",
+   "idx": 1,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "right",
+   "idx": 2,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "right",
+   "idx": 3,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "up",
+   "idx": 0,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "up",
+   "idx": 1,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "up",
+   "idx": 2,
+   "dur": 150
+  },
+  {
+   "anim": "walk",
+   "dir": "up",
+   "idx": 3,
+   "dur": 150
+  },
+  {
+   "anim": "run",
+   "dir": "down",
+   "idx": 0,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "down",
+   "idx": 1,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "down",
+   "idx": 2,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "down",
+   "idx": 3,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "left",
+   "idx": 0,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "left",
+   "idx": 1,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "left",
+   "idx": 2,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "left",
+   "idx": 3,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "right",
+   "idx": 0,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "right",
+   "idx": 1,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "right",
+   "idx": 2,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "right",
+   "idx": 3,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "up",
+   "idx": 0,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "up",
+   "idx": 1,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "up",
+   "idx": 2,
+   "dur": 95
+  },
+  {
+   "anim": "run",
+   "dir": "up",
+   "idx": 3,
+   "dur": 95
+  }
+ ],
+ "tags": [
+  {
+   "name": "idle_down",
+   "start": 0,
+   "end": 1
+  },
+  {
+   "name": "idle_left",
+   "start": 2,
+   "end": 3
+  },
+  {
+   "name": "idle_right",
+   "start": 4,
+   "end": 5
+  },
+  {
+   "name": "idle_up",
+   "start": 6,
+   "end": 7
+  },
+  {
+   "name": "walk_down",
+   "start": 8,
+   "end": 11
+  },
+  {
+   "name": "walk_left",
+   "start": 12,
+   "end": 15
+  },
+  {
+   "name": "walk_right",
+   "start": 16,
+   "end": 19
+  },
+  {
+   "name": "walk_up",
+   "start": 20,
+   "end": 23
+  },
+  {
+   "name": "run_down",
+   "start": 24,
+   "end": 27
+  },
+  {
+   "name": "run_left",
+   "start": 28,
+   "end": 31
+  },
+  {
+   "name": "run_right",
+   "start": 32,
+   "end": 35
+  },
+  {
+   "name": "run_up",
+   "start": 36,
+   "end": 39
+  }
+ ],
+ "layers": [
+  {
+   "group": "hair_back",
+   "name": "M_spiky",
+   "file": "hair_back__M_spiky.png",
+   "empty": true
+  },
+  {
+   "group": "hair_back",
+   "name": "M_sidepart",
+   "file": "hair_back__M_sidepart.png",
+   "empty": true
+  },
+  {
+   "group": "hair_back",
+   "name": "M_crop",
+   "file": "hair_back__M_crop.png",
+   "empty": true
+  },
+  {
+   "group": "hair_back",
+   "name": "F_long",
+   "file": "hair_back__F_long.png",
+   "empty": false
+  },
+  {
+   "group": "hair_back",
+   "name": "F_ponytail",
+   "file": "hair_back__F_ponytail.png",
+   "empty": false
+  },
+  {
+   "group": "hair_back",
+   "name": "F_bob",
+   "file": "hair_back__F_bob.png",
+   "empty": true
+  },
+  {
+   "group": "skin",
+   "name": "skin_light",
+   "file": "skin__skin_light.png",
+   "empty": false
+  },
+  {
+   "group": "skin",
+   "name": "skin_fair",
+   "file": "skin__skin_fair.png",
+   "empty": false
+  },
+  {
+   "group": "skin",
+   "name": "skin_tan",
+   "file": "skin__skin_tan.png",
+   "empty": false
+  },
+  {
+   "group": "skin",
+   "name": "skin_dark",
+   "file": "skin__skin_dark.png",
+   "empty": false
+  },
+  {
+   "group": "clothes",
+   "name": "M_tee_jeans",
+   "file": "clothes__M_tee_jeans.png",
+   "empty": false
+  },
+  {
+   "group": "clothes",
+   "name": "M_hoodie",
+   "file": "clothes__M_hoodie.png",
+   "empty": false
+  },
+  {
+   "group": "clothes",
+   "name": "M_adventurer",
+   "file": "clothes__M_adventurer.png",
+   "empty": false
+  },
+  {
+   "group": "clothes",
+   "name": "F_dress",
+   "file": "clothes__F_dress.png",
+   "empty": false
+  },
+  {
+   "group": "clothes",
+   "name": "F_blouse_skirt",
+   "file": "clothes__F_blouse_skirt.png",
+   "empty": false
+  },
+  {
+   "group": "clothes",
+   "name": "F_adventurer",
+   "file": "clothes__F_adventurer.png",
+   "empty": false
+  },
+  {
+   "group": "clothes",
+   "name": "U_suit",
+   "file": "clothes__U_suit.png",
+   "empty": false
+  },
+  {
+   "group": "hair",
+   "name": "M_spiky",
+   "file": "hair__M_spiky.png",
+   "empty": false
+  },
+  {
+   "group": "hair",
+   "name": "M_sidepart",
+   "file": "hair__M_sidepart.png",
+   "empty": false
+  },
+  {
+   "group": "hair",
+   "name": "M_crop",
+   "file": "hair__M_crop.png",
+   "empty": false
+  },
+  {
+   "group": "hair",
+   "name": "F_long",
+   "file": "hair__F_long.png",
+   "empty": false
+  },
+  {
+   "group": "hair",
+   "name": "F_ponytail",
+   "file": "hair__F_ponytail.png",
+   "empty": false
+  },
+  {
+   "group": "hair",
+   "name": "F_bob",
+   "file": "hair__F_bob.png",
+   "empty": false
+  }
+ ]
+}
