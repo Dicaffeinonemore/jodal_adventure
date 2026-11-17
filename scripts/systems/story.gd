@@ -24,6 +24,7 @@ const DAILY_TASKS := 3
 const DRIVE_FATIGUE := 20
 const SELECT_FATIGUE := 8
 const QC_FATIGUE := 5
+const LATE_REPUTATION := 4  # delivered after the driving time limit
 const RETURN_FATIGUE := 7
 const HELP_FATIGUE := 8
 const URGENT_CHANCE := 0.25
@@ -803,8 +804,11 @@ func _talk_receiver(id: String) -> void:
 			reaction = "기준은 통과예요. 쓰는 데 문제없겠어요."
 		elif g == "미흡":
 			reaction = "음... 기준에 못 미쳐요. 보완이 필요하겠어요."
+		var greet := "조달청에서 오셨군요! %s 맞죠?" % t["item"]
+		if bool(GameState.task.get("late", false)):
+			greet = "조달청에서 오셨군요! 기다리고 있었어요. %s 맞죠?" % t["item"]
 		await Dialogue.say(n, [
-			"조달청에서 오셨군요! %s 맞죠?" % t["item"],
+			greet,
 			"바로 검수해 볼게요...",
 			"검수 결과: [%s] %d점 (품질 %d x 화물 %d%%, 기준 %d점)" % [g, roundi(score), quality, cargo, required],
 			reaction,
@@ -854,6 +858,9 @@ func _report() -> void:
 	var saved := int(t["budget"]) - vendor_price(vi)
 	var mult := GameState.reward_multiplier() * (URGENT_MULT if is_urgent() else 1.0)
 	var rep := roundi(TaskData.reputation_for(g) * mult)
+	var late := bool(GameState.task.get("late", false))
+	if late:
+		rep -= LATE_REPUTATION
 	var xp := roundi(int(t["exp"]) * mult)
 	var bonus := roundi(TaskData.bonus_for(g) * mult)
 	var lines: Array = ["보고 잘 받았어요. 검수 결과는 [%s]이군요." % g]
@@ -863,6 +870,8 @@ func _report() -> void:
 		lines.append("싼 게 항상 좋은 건 아니에요. 검수 기준을 꼭 같이 봐요.")
 	elif g == "우수":
 		lines.append("아주 잘했어요! 수요기관에서도 칭찬이 자자하네요.")
+	if late:
+		lines.append("다만 납품 기한을 넘겨서 평판이 %d 깎였어요. 다음엔 서둘러요!" % LATE_REPUTATION)
 	if is_urgent():
 		lines.append("급한 건까지 처리해 줘서 고마워요. 보상 1.5배!")
 	lines.append("보상: 팀 예산 %+d만원, 평판 %+d, 경험치 +%d, 성과급 %s원 (컨디션 %s)" % [saved, rep, xp, Korean.comma(bonus), GameState.condition_label()])

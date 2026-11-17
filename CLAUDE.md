@@ -55,7 +55,7 @@ godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
 #      소리를 바꾼 뒤: python tools/gen_audio.py -> 1) -> 2-2)
 godot --headless --path . --script res://tests/audio_check.gd
 
-# 2-3) 레이싱 코스 확인 (자동 운전으로 8개 코스 완주 60초 안·화물 60% 이상, 입력 없으면 제한 시간에 끝남. 마지막 줄 DRIVE OK)
+# 2-3) 납품 운전 코스 확인 (자동 운전으로 8개 코스를 제한 시간 안·화물 60% 이상으로 도착, 입력 없으면 견인으로 끝남. 마지막 줄 DRIVE OK)
 godot --headless --path . --fixed-fps 60 --script res://tests/drive_bot.gd
 
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
@@ -107,7 +107,7 @@ scripts/systems/
   korean.gd              조사(을/를, 이/가, 로/으로...), 천 단위 쉼표
   sprite_util.gd         스프라이트 시트 -> SpriteFrames
 scripts/data/task_data.gd  업무(조달 요청) 데이터, 검수 등급(요구 품질 기준), 품질 검사 공식(qc_*), 시설 업그레이드
-scripts/data/track_data.gd 레이싱 코스 8개(수요기관마다 2개, Catmull-Rom 곡선), 테마 색·장식
+scripts/data/track_data.gd 납품 운전 코스 8개(수요기관마다 2개, Catmull-Rom 곡선), 테마(도심·공원·숲·강변·해안·시골 마을·시장·신도시), 제한 시간
 scripts/world/
   map_base.gd            맵 공통: ASCII 레이아웃 -> 타일, NPC·오브젝트·간판(signs)·출구·플레이어·카메라·HUD·터치 UI 배치,
                          목표 화살표(Story.objective_target), HUD를 피하는 카메라, 작은 방은 2배 확대
@@ -126,8 +126,10 @@ scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_con
                          procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과),
                          event_window.gd(짧은 이벤트 장면 창: carry = 일 돕기, inspect = 검사관 결과)
                          title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물, 지붕 위 타이틀 간판
-scripts/minigames/race_game.gd   납품 레이싱(scenes/minigames/drive.tscn): 자동 가속, ←→ 핸들, Shift 드리프트(게이지 -> 부스터),
-                                 Q 에너지 드링크 부스터, 경쟁 트럭 3대·순위 보너스, 미니맵, 터치 버튼. 진행도는 현재 위치 근처만 찾는다
+scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn): 조달청 -> 수요기관 건물까지 제한 시간 안에 도착(경주 아님).
+                                 자동 가속, ←→ 핸들, Shift 드리프트(게이지 -> 부스터), Q 에너지 드링크 부스터. 장애물은 오가는 차·공사 울타리.
+                                 일찍 도착하면 별 보너스, 늦으면 task.late(보고 때 평판 -4). 진행도는 현재 위치 근처만 찾는다.
+                                 출발·도착 건물 그림은 assets bld_<id>.png(tools/gen_placeholders.py가 타이틀 마을에서 잘라 냄)
 scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            갈무리 폰트 (OFL)
@@ -135,7 +137,7 @@ assets/sprites/placeholder/  임시 도트 (tools/gen_placeholders.py로 생성)
 assets/audio/            임시 칩튠 BGM 3곡(bgm_home·town·drive, 루프)·효과음 21종 (tools/gen_audio.py로 합성, QOA 압축 임포트)
 tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)
 tests/audio_check.gd     소리 파일 임포트 확인 (BGM 루프, 효과음 존재)
-tests/drive_bot.gd       레이싱 8개 코스 자동 완주 확인
+tests/drive_bot.gd       납품 운전 8개 코스 자동 도착 확인
 tools/, docs/            Godot이 무시함(.gdignore)
 ```
 
@@ -149,7 +151,7 @@ tools/, docs/            Godot이 무시함(.gdignore)
 ### 코어 루프 (story.gd의 `Step`)
 
 `NONE` -팀장 대화(업무 배정, 긴급 판정)-> `ACCEPTED` -나라장터 PC에서 업체 선택(특가 판정)-> `VENDOR_CHOSEN`
--로비 왼쪽 품질검사실 검사대-> 품질 검사(`task.qc_done`, `qc_quality`) -주차장 차량-> 레이싱 -> `ARRIVED`(수요기관 앞마당 도착) -담당자(receiver)-> 검수 -> `DELIVERED`(추가 부탁 판정)
+-로비 왼쪽 품질검사실 검사대-> 품질 검사(`task.qc_done`, `qc_quality`) -주차장 차량-> 납품 운전 -> `ARRIVED`(수요기관 앞마당 도착) -담당자(receiver)-> 검수 -> `DELIVERED`(추가 부탁 판정)
 -청사 복귀, 팀장 보고-> 보상(팀 예산 = 아낀 예산, 평판, 경험치, 성과급) -> `NONE`.
 검수 점수 = 납품 품질(업체 품질 + 품질 검사로 바꾼 불량품 몫, `Story.delivered_quality()`) × 화물 상태. 업무의 `required` 이상이면 보통, +15 이상이면 우수(`TaskData.grade`).
 팀 예산은 하단 바 [성장]에서 시설 업그레이드(`TaskData.UPGRADES`)에 쓴다.

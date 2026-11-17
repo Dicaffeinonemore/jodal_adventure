@@ -1,10 +1,10 @@
 extends SceneTree
-## Racing minigame check: the autopilot (RaceGame.autopilot) drives every course,
-## then one race with no input checks that the time limit still ends it.
+## Delivery driving check: the autopilot (RaceGame.autopilot) drives every course,
+## then one drive with no input checks that the tow truck still ends it.
 ##   godot --headless --path . --fixed-fps 60 --script res://tests/drive_bot.gd
-## Prints one line per course and "DRIVE OK" when every course is finished within
-## 60 s with cargo >= 60% (a careful driver does at least as well), and the idle race
-## ends at the time limit.
+## Prints one line per course and "DRIVE OK" when every course is reached within its
+## time limit with cargo >= 60% (a careful driver does at least as well), and the idle
+## drive ends late.
 ## RaceGame is loaded at run time: naming the class here would compile it before the
 ## autoloads exist and the test would never start.
 
@@ -21,10 +21,10 @@ func _run() -> void:
 	var ok := true
 	for i in TrackData.count():
 		var r := await _race(i, true)
-		var good := not bool(r["late"]) and float(r["time"]) < 60.0 and int(r["cargo"]) >= 60
+		var good := not bool(r["late"]) and int(r["cargo"]) >= 60
 		ok = ok and good
-		print("  course %d %-10s time %4.1fs cargo %3d%% place %d %s %s" % [i, str(TrackData.TRACKS[i]["name"]),
-				float(r["time"]), int(r["cargo"]), int(r["place"]), str(r["stats"]), "" if good else "<- FAIL"])
+		print("  course %d %-12s %4.1f/%2.0fs cargo %3d%% %s %s" % [i, str(TrackData.TRACKS[i]["name"]),
+				float(r["time"]), float(r["limit"]), int(r["cargo"]), str(r["stats"]), "" if good else "<- FAIL"])
 	var idle := await _race(0, false)
 	print("  idle (no input): time %.1fs, late=%s, cargo %d%%" % [float(idle["time"]), str(idle["late"]), int(idle["cargo"])])
 	ok = ok and bool(idle["late"])
@@ -49,7 +49,7 @@ func _race(track: int, auto: bool) -> Dictionary:
 	var race := current_scene
 	while current_scene == race and int(race.get("_state")) != 2:
 		await process_frame
-	var result := {"time": float(race.call("elapsed")), "cargo": int(race.get("cargo")), "place": int(race.get("_place")),
+	var result := {"time": float(race.call("elapsed")), "cargo": int(race.get("cargo")), "limit": float(race.get("time_limit")),
 			"late": bool(race.get("finished_late")), "stats": race.get("stats")}
 	for i in 150:  # let it hand over to the destination map
 		await process_frame

@@ -1,8 +1,11 @@
 class_name RaceGame
 extends Node2D
-## 납품 레이싱: drive from the 청사 to the destination on one of TrackData's courses,
-## against three other delivery trucks. Cargo condition (hits, rough ground) becomes
-## the delivery quality at inspection; finishing place and stars pay a bonus.
+## 납품 운전 (time trial): drive from the 조달청 to the destination building on one of
+## TrackData's courses before the time runs out. Cars on the road (slower ones in your
+## lane, oncoming ones in the other lane) and road-works barricades are the obstacles;
+## hitting them lowers the cargo condition, which becomes the delivery quality.
+## Arriving early pays bonus stars; arriving late is marked on the task (Story takes a
+## little reputation at the report).
 ##
 ## Controls (actions only): move_left / move_right steer, acceleration is automatic,
 ## "run" (Shift) drifts (sharper turn, fills the drift gauge: full gauge = +1 booster),
@@ -11,11 +14,12 @@ extends Node2D
 ## Bad condition makes the wheel jerk now and then (drowsy); a drink stops it a while.
 ## Story.cargo_damage_mult() scales damage (fragile cargo, truck upgrade).
 
-## Tests: drive by itself (follows the road, drifts, boosts) / pick the course.
+## Tests: drive by itself (keeps right, avoids obstacles, boosts) / pick the course.
 static var autopilot := false
 static var force_track := -1
 
 const ROAD_HALF := 46.0
+const LANE := 22.0  # lane centers at +-LANE (traffic keeps right: forward at -LANE)
 const MAX_SPEED := 240.0
 const BOOST_SPEED := 350.0
 const OFFROAD_SPEED := 115.0
@@ -29,28 +33,30 @@ const BOOST_TIME := 1.4
 const DRIFT_FILL := 45.0  # gauge per second of drifting (100 = one booster)
 const START_CHARGES := 1
 const MAX_CHARGES := 3
-const TIME_LIMIT := 75.0
+const LATE_GRACE := 30.0  # after the time limit, a tow truck brings you in this much later
 const OFFROAD_DAMAGE := 2.0  # cargo per second on rough ground
 const FENCE := 150.0  # past the curb, an invisible fence stops the truck
 const COUNTDOWN := 3.0
 const CAR_R := 9.0
-const OBSTACLES := 9
+const TRAFFIC := 7
+const BARRICADES := 7
 const STARS := 8
 const DRINKS := 2
-const DAMAGE := {"cone": 5, "crate": 7, "rival": 3, "fence": 4}
-const PLACE_BONUS := [3, 2, 1, 0]  # stars for 1st..4th
-const RIVAL_COLORS := [Color("ef6b5b"), Color("7ed37e"), Color("b38cff")]
-const RIVAL_SKILL := [0.9, 0.86, 0.82]
+const DAMAGE := {"car": 8, "barricade": 6, "fence": 4}
+const EARLY_BONUS_EVERY := 4.0  # one bonus star per this many seconds left (max 4)
+const TRAFFIC_COLORS := [Color("ef6b5b"), Color("7ed37e"), Color("b38cff"), Color("f2c14e"), Color("6fb6ff"), Color("f0f0f0")]
 const DROWSY_MIN := 4.0
 const DROWSY_MAX := 6.5
 const SPRITES := "res://assets/sprites/placeholder/"
+const BUILDING_SCALE := 2.0
 
-enum State { COUNTDOWN, RACING, FINISHED }
+enum State { COUNTDOWN, DRIVING, FINISHED }
 
 var cargo := 100
 var stars := 0
 var track_index := 0
-var finished_late := false  # hit the time limit
+var time_limit := 40.0
+var finished_late := false
 var stats := {"offroad_s": 0.0}  # damage count by cause + seconds off the road (tests print it)
 
 var _state := State.COUNTDOWN
@@ -60,7 +66,8 @@ var _length := 0.0
 var _theme: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 var _damage_mult := 1.0
-var _cargo_f := 100.0  # fractional cargo (rough ground wears it down slowly)
+var _cargo_f := 100.0
+var _late_warned := false
 
 # player
 var _pos := Vector2.ZERO
@@ -78,11 +85,11 @@ var _drowsy_timer := 5.0
 var _drowsy_t := 0.0
 var _drowsy_dir := 0.0
 var _drowsy_block := 0.0
-var _place := 4
+var _auto_drift := false
 
 var _truck: Sprite2D
-var _rivals: Array[Dictionary] = []  # {sprite, offset, lateral, phase, skill, speed, finished, time}
-var _items: Array[Dictionary] = []  # {kind, pos, node}
+var _traffic: Array[Dictionary] = []  # {node, offset, lateral, speed (+ forward / - oncoming), cd}
+var _items: Array[Dictionary] = []  # {kind, node, offset, lateral}
 var _skids: Skids
 var _fx: Effects
 var _cam: Camera2D
@@ -99,16 +106,19 @@ func _ready() -> void:
 	_theme = TrackData.THEMES[str(info["theme"])]
 	_curve = TrackData.build_curve(track_index)
 	_length = _curve.get_baked_length()
+	time_limit = TrackData.time_limit(_length)
 	_damage_mult = Story.cargo_damage_mult()
 	_drowsy_timer = _rng.randf_range(DROWSY_MIN, DROWSY_MAX)
 
 	var view := TrackView.new()
-	view.setup(_curve, _theme, track_index, Story.destination_name())
+	view.setup(_curve, _theme, track_index)
 	add_child(view)
+	_add_building("pps", 0.0, -1.0, "조달청")
+	_add_building(Story.destination_id(), _length, 1.0, Story.destination_name())
 	_skids = Skids.new()
 	add_child(_skids)
 	_place_items()
-	_spawn_rivals()
+	_spawn_traffic()
 	_truck = Sprite2D.new()
 	_truck.texture = load(SPRITES + "car_player.png") as Texture2D
 	_truck.z_index = 5
@@ -117,7 +127,7 @@ func _ready() -> void:
 	_fx.z_index = 4
 	add_child(_fx)
 	_offset = 30.0
-	_pos = _curve.sample_baked(_offset)
+	_pos = _curve.sample_baked(_offset) + _normal(_offset) * -LANE
 	_heading = _tangent(_offset).angle() + PI / 2.0
 	_cam = Camera2D.new()
 	_cam.position_smoothing_enabled = true
@@ -133,6 +143,42 @@ func _ready() -> void:
 	_cam.reset_smoothing()
 
 
+## The 조달청 behind the start and the destination past the end of the road, upright,
+## on a paved yard, with its name board.
+func _add_building(id: String, at: float, dir: float, label: String) -> void:
+	var tex := load(SPRITES + "bld_%s.png" % id) as Texture2D
+	if tex == null:
+		return
+	var end := _curve.sample_baked(at)
+	var t := _tangent(at) * dir
+	var size := tex.get_size() * BUILDING_SCALE
+	var center := end + t * (size.length() * 0.5 + 30.0)
+	var yard := Yard.new()
+	yard.position = end + t * 40.0
+	yard.radius = maxf(size.x, size.y) * 0.75
+	add_child(yard)
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.scale = Vector2(BUILDING_SCALE, BUILDING_SCALE)
+	s.position = center
+	s.z_index = 2
+	add_child(s)
+	var board := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("8a5a36") if dir > 0.0 else Color("23489a")
+	sb.border_color = Color("261e2c")
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(2)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 4
+	board.add_theme_stylebox_override("panel", sb)
+	board.add_child(UiTheme.make_label(("도착: " if dir > 0.0 else "출발: ") + label, UiTheme.SIZE, Color("fbf3dc"), true))
+	board.z_index = 6
+	add_child(board)
+	board.reset_size()
+	board.position = (center + Vector2(-board.size.x / 2.0, -size.y / 2.0 - 22.0)).round()
+
+
 # ---------------------------------------------------------------- loop
 func _process(delta: float) -> void:
 	match _state:
@@ -143,18 +189,18 @@ func _process(delta: float) -> void:
 				Sound.play("select" if _t < 0.0 else "confirm")
 			_ui.set_center(str(ceili(-_t)) if _t < 0.0 else "출발!")
 			if _t >= 0.0:
-				_state = State.RACING
+				_state = State.DRIVING
 				_t = 0.0
-		State.RACING:
+		State.DRIVING:
 			_t += delta
-			if _t > 0.8:
+			if _t > 0.8 and _t < 1.0:
 				_ui.set_center("")
 			_drive(delta)
-			_move_rivals(delta)
+			_move_traffic(delta)
 			_check_items()
 			_check_finish()
 		State.FINISHED:
-			_move_rivals(delta)
+			_move_traffic(delta)
 			_speed = move_toward(_speed, 0.0, BRAKE * delta)
 			_vel = _vel.move_toward(Vector2.ZERO, BRAKE * delta)
 			_pos += _vel * delta
@@ -186,13 +232,12 @@ func _drive(delta: float) -> void:
 
 	if offroad:
 		stats["offroad_s"] = float(stats["offroad_s"]) + delta
-	if offroad and _speed > 40.0:
-		_wear(OFFROAD_DAMAGE * delta)
+		if _speed > 40.0:
+			_wear(OFFROAD_DAMAGE * delta)
 	_hit_cd = maxf(0.0, _hit_cd - delta)
-	# invisible fence a little past the curb
 	var center := _curve.sample_baked(_offset)
 	var away := _pos - center
-	if away.length() > ROAD_HALF + FENCE:
+	if away.length() > ROAD_HALF + FENCE:  # invisible fence a little past the curb
 		_pos = center + away.normalized() * (ROAD_HALF + FENCE)
 		_speed *= 0.5
 		_vel *= 0.5
@@ -207,7 +252,6 @@ func _drive(delta: float) -> void:
 				_charges += 1
 				Sound.play("star")
 				_ui.flash("드리프트 게이지 완충! 부스터 +1", UiTheme.COLOR_WARN)
-	# wrong way
 	var along := Vector2.UP.rotated(_heading).dot(_tangent(_offset))
 	_wrong_way_t = _wrong_way_t + delta if along < -0.3 and _speed > 60.0 else 0.0
 	if _wrong_way_t > 1.2:
@@ -218,12 +262,7 @@ func _drive(delta: float) -> void:
 
 
 func _steer_input(delta: float) -> float:
-	var s := 0.0
-	if autopilot:
-		s = _autopilot_steer()
-	else:
-		s = Input.get_axis("move_left", "move_right")
-	# drowsiness: the wheel jerks to one side now and then
+	var s := _autopilot_steer() if autopilot else Input.get_axis("move_left", "move_right")
 	_drowsy_block = maxf(0.0, _drowsy_block - delta)
 	if GameState.condition() == GameState.Condition.BAD and _drowsy_block <= 0.0 and not autopilot:
 		_drowsy_timer -= delta
@@ -238,23 +277,30 @@ func _steer_input(delta: float) -> float:
 	return s
 
 
-var _auto_drift := false
-
-
-## Like a careful player: follows the road and moves over for obstacles ahead.
+## Like a careful driver: keeps right, moves over for barricades and slow cars ahead
+## (when no car is coming the other way), and back.
 func _autopilot_steer() -> float:
 	var ahead := minf(_offset + 70.0 + _speed * 0.3, _length)
-	var lane := 0.0
+	var lane := -LANE
+	var blocked_right := false
+	var blocked_left := false
+	var oncoming_near := false
 	for it: Dictionary in _items:
-		var k := str(it["kind"])
-		if k == "star" or k == "drink":
-			continue
 		var d := float(it["offset"]) - _offset
-		if d > 0.0 and d < 170.0:
-			var lat := float(it["lateral"])
-			lane = lat - 30.0 if lat > 0.0 else lat + 30.0
-			break
-	var look := _curve.sample_baked(ahead) + _normal(ahead) * clampf(lane, -ROAD_HALF + 10.0, ROAD_HALF - 10.0)
+		if str(it["kind"]) == "barricade" and d > -10.0 and d < 190.0:
+			if float(it["lateral"]) < 0.0:
+				blocked_right = true
+			else:
+				blocked_left = true
+	for c: Dictionary in _traffic:
+		var d := float(c["offset"]) - _offset
+		if float(c["speed"]) > 0.0 and d > -10.0 and d < 150.0:
+			blocked_right = true
+		if float(c["speed"]) < 0.0 and d > -40.0 and d < 260.0:
+			oncoming_near = true
+	if blocked_right and not oncoming_near and not blocked_left:
+		lane = LANE
+	var look := _curve.sample_baked(ahead) + _normal(ahead) * lane
 	var want := (look - _pos).angle() + PI / 2.0
 	var diff := wrapf(want - _heading, -PI, PI)
 	_auto_drift = absf(diff) > 0.5
@@ -280,113 +326,120 @@ func _update_offset() -> void:
 
 
 func _check_finish() -> void:
+	if _t >= time_limit and not _late_warned:
+		_late_warned = true
+		Sound.play("warn")
+		_ui.flash("납품 기한 초과! 그래도 끝까지 가요", UiTheme.COLOR_BAD)
 	if _offset >= _length - 20.0:
-		_finish(false)
-	elif _t >= TIME_LIMIT:
+		_finish(_t > time_limit)
+	elif _t >= time_limit + LATE_GRACE:  # stuck or idle: a tow truck brings the cargo in
+		_wear(10.0)
 		_finish(true)
 
 
 func _finish(late: bool) -> void:
 	_state = State.FINISHED
 	finished_late = late
-	var ahead := 0
-	for r: Dictionary in _rivals:
-		if bool(r["finished"]) or (late and float(r["offset"]) > _offset):
-			ahead += 1
-	_place = 4 if late else ahead + 1
-	var bonus: int = PLACE_BONUS[_place - 1]
+	var left := time_limit - _t
+	var bonus := 0 if late else clampi(int(left / EARLY_BONUS_EVERY), 0, 4)
 	stars += bonus
-	var msg := "시간 초과! 늦게 도착했어요" if late else "%d위로 도착!" % _place
-	_ui.set_center("%s\n화물 상태 %d%%%s" % [msg, cargo, (" / 순위 보너스 별 +%d" % bonus) if bonus > 0 else ""])
-	Sound.play("jingle_good" if _place <= 2 else "pop")
+	GameState.task["late"] = late
+	var msg := "납품 기한을 넘겼어요..." if late else "도착! %d초 일찍 왔어요" % int(left)
+	if late and _t >= time_limit + LATE_GRACE:
+		msg = "견인차의 도움으로 도착했어요..."
+	_ui.set_center("%s\n화물 상태 %d%%%s" % [msg, cargo, ("  /  빠른 도착 보너스 별 +%d" % bonus) if bonus > 0 else ""])
+	Sound.play("bad" if late else "jingle_good")
 	await get_tree().create_timer(2.0).timeout
 	Story.on_drive_finished(cargo, stars)
 
 
-# ---------------------------------------------------------------- rivals
-func _spawn_rivals() -> void:
-	var tex := load(SPRITES + "car_rival.png") as Texture2D
-	for i in 3:
+# ---------------------------------------------------------------- traffic
+func _spawn_traffic() -> void:
+	for i in TRAFFIC:
 		var s := Sprite2D.new()
-		s.texture = tex
-		s.modulate = RIVAL_COLORS[i]
+		s.texture = load(SPRITES + ("car_npc.png" if i % 3 == 0 else "car_rival.png")) as Texture2D
+		if i % 3 != 0:
+			s.modulate = TRAFFIC_COLORS[i % TRAFFIC_COLORS.size()]
 		s.z_index = 5
 		add_child(s)
-		_rivals.append({
-			"sprite": s, "offset": 130.0 - i * 30.0,
-			"lateral": [26.0, -26.0, 26.0][i], "phase": _rng.randf() * TAU,
-			"skill": RIVAL_SKILL[i] * _rng.randf_range(0.97, 1.03), "speed": 0.0, "finished": false,
-		})
+		var c := {"node": s, "offset": 0.0, "lateral": 0.0, "speed": 0.0, "cd": 0.0}
+		_traffic.append(c)
+		_place_car(c, 450.0 + (_length - 800.0) * (i + 0.5) / TRAFFIC)
 
 
-## Rivals follow the road; they speed up when far behind the player and ease off
-## when far ahead, so the race stays close.
-func _move_rivals(delta: float) -> void:
-	for r: Dictionary in _rivals:
-		if bool(r["finished"]) or _state == State.COUNTDOWN:
-			continue
-		var gap := _offset - float(r["offset"])
-		var skill := float(r["skill"]) + clampf(gap / 4000.0, -0.08, 0.08)
-		var target := MAX_SPEED * skill
-		r["speed"] = move_toward(float(r["speed"]), target, ACCEL * 0.8 * delta)
-		r["offset"] = float(r["offset"]) + float(r["speed"]) * delta
-		r["bump_cd"] = maxf(0.0, float(r.get("bump_cd", 0.0)) - delta)
-		# weave in its lane, but move over when the player is alongside
-		var want := sin(_t * 0.6 + float(r["phase"])) * 22.0
-		var o := float(r["offset"])
-		if absf(o - _offset) < 70.0:
-			var player_lat := (_pos - _curve.sample_baked(o)).dot(_normal(o))
-			want = player_lat - 34.0 if player_lat > 0.0 else player_lat + 34.0
-		want = clampf(want, -ROAD_HALF + 10.0, ROAD_HALF - 10.0)
-		r["lateral"] = move_toward(float(r["lateral"]), want, 60.0 * delta)
-		if float(r["offset"]) >= _length:
-			r["offset"] = _length
-			r["finished"] = true
-		# bumping the player: they separate and the rival drops back for a moment
-		var rp := _rival_pos(r)
-		var dv := _pos - rp
-		if _state == State.RACING and dv.length() < CAR_R * 2.0 + 2.0:
-			_pos = rp + dv.normalized() * (CAR_R * 2.0 + 2.0)
-			if float(r["bump_cd"]) <= 0.0:
-				r["bump_cd"] = 1.5
-				r["speed"] = float(r["speed"]) * 0.6
-				_speed *= 0.9
-				if _hit_cd <= 0.0:
-					_damage("rival")
+## Puts a car on the road at offset o: about half drive our way (slower, right lane),
+## the rest come the other way in the left lane.
+func _place_car(c: Dictionary, o: float) -> void:
+	var oncoming := _rng.randf() < 0.45
+	c["offset"] = o
+	c["lateral"] = LANE if oncoming else -LANE
+	c["speed"] = -_rng.randf_range(110.0, 150.0) if oncoming else _rng.randf_range(100.0, 140.0)
+	c["cd"] = 0.0
 
 
-func _rival_pos(r: Dictionary) -> Vector2:
-	var o := float(r["offset"])
-	return _curve.sample_baked(o) + _normal(o) * float(r["lateral"])
+func _move_traffic(delta: float) -> void:
+	if _state == State.COUNTDOWN:
+		return
+	for c: Dictionary in _traffic:
+		if float(c["offset"]) < -1000.0:
+			continue  # parked out of sight
+		c["offset"] = float(c["offset"]) + float(c["speed"]) * delta
+		c["cd"] = maxf(0.0, float(c["cd"]) - delta)
+		var o := float(c["offset"])
+		# cars left behind (or at the road ends) come back further ahead
+		if o < _offset - 500.0 or o < 60.0 or o > _length - 120.0:
+			var ahead := _offset + _rng.randf_range(700.0, 1100.0)
+			if ahead < _length - 200.0:
+				_place_car(c, ahead)
+			else:
+				c["offset"] = -10000.0
+				continue
+		var cp := _car_pos(c)
+		var dv := _pos - cp
+		if _state == State.DRIVING and dv.length() < CAR_R * 2.0 + 2.0:
+			_pos = cp + dv.normalized() * (CAR_R * 2.0 + 2.0)
+			if float(c["cd"]) <= 0.0:
+				c["cd"] = 1.5
+				_speed *= 0.6
+				_vel *= 0.6
+				_damage("car")
 
 
-func rank_now() -> int:
-	var ahead := 0
-	for r: Dictionary in _rivals:
-		if float(r["offset"]) > _offset:
-			ahead += 1
-	return ahead + 1
+func _car_pos(c: Dictionary) -> Vector2:
+	var o := clampf(float(c["offset"]), 0.0, _length)
+	return _curve.sample_baked(o) + _normal(o) * float(c["lateral"])
+
+
+func traffic_positions() -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	for c: Dictionary in _traffic:
+		if float(c["offset"]) >= 0.0:
+			out.append(_car_pos(c))
+	return out
 
 
 # ---------------------------------------------------------------- items
+## Barricades close one lane here and there (never both); stars and drinks are pickups.
 func _place_items() -> void:
-	var extra := 3 if Story.is_urgent() else 0
 	var kinds: Array[String] = []
-	for i in OBSTACLES + extra:
-		kinds.append("cone" if i % 2 == 0 else "crate")
+	for i in BARRICADES + (2 if Story.is_urgent() else 0):
+		kinds.append("barricade")
 	for i in STARS:
 		kinds.append("star")
 	for i in DRINKS:
 		kinds.append("drink")
 	kinds.shuffle()
-	var span := _length - 600.0
+	var span := _length - 700.0
+	var tex := {"barricade": "barricade.png", "star": "pickup_star.png", "drink": "pickup_drink.png"}
 	for i in kinds.size():
-		var o := 350.0 + span * (i + _rng.randf_range(0.1, 0.9)) / kinds.size()
-		var lat := _rng.randf_range(-ROAD_HALF + 14.0, ROAD_HALF - 14.0)
-		var tex := {"cone": "cone.png", "crate": "race_crate.png", "star": "pickup_star.png", "drink": "pickup_drink.png"}
+		var o := 350.0 + span * (i + _rng.randf_range(0.15, 0.85)) / kinds.size()
+		var lat := (LANE if _rng.randf() < 0.5 else -LANE) if kinds[i] == "barricade" \
+				else _rng.randf_range(-ROAD_HALF + 14.0, ROAD_HALF - 14.0)
 		var s := Sprite2D.new()
 		s.texture = load(SPRITES + str(tex[kinds[i]])) as Texture2D
 		s.position = _curve.sample_baked(o) + _normal(o) * lat
+		if kinds[i] == "barricade":
+			s.rotation = _tangent(o).angle() + PI / 2.0  # across the lane
 		s.z_index = 3
 		add_child(s)
 		_items.append({"kind": kinds[i], "node": s, "offset": o, "lateral": lat})
@@ -396,7 +449,14 @@ func _check_items() -> void:
 	for i in range(_items.size() - 1, -1, -1):
 		var it: Dictionary = _items[i]
 		var node: Sprite2D = it["node"]
-		if node.position.distance_to(_pos) > CAR_R + 9.0:
+		var hit := false
+		if str(it["kind"]) == "barricade":  # a bar across the lane, not a dot
+			var across := Vector2.RIGHT.rotated(node.rotation) * 17.0
+			hit = Geometry2D.get_closest_point_to_segment(_pos, node.position - across, node.position + across) \
+					.distance_to(_pos) < CAR_R + 3.0
+		else:
+			hit = node.position.distance_to(_pos) < CAR_R + 9.0
+		if not hit:
 			continue
 		_items.remove_at(i)
 		match str(it["kind"]):
@@ -413,9 +473,9 @@ func _check_items() -> void:
 				_ui.flash("에너지 드링크 획득! 부스터 +1", UiTheme.COLOR_GOOD)
 				node.queue_free()
 			_:
-				_speed *= 0.7
-				_vel *= 0.7
-				_damage(str(it["kind"]))
+				_speed *= 0.6
+				_vel *= 0.6
+				_damage("barricade")
 				_knock_away(node)
 
 
@@ -427,7 +487,7 @@ func _damage(kind: String) -> void:
 	stats[kind] = int(stats.get(kind, 0)) + 1
 	_wear(float(dmg))
 	Sound.play("crash", 0.1)
-	var what := {"cone": "꼬깔", "crate": "상자", "rival": "다른 트럭", "fence": "울타리"}
+	var what := {"car": "다른 차", "barricade": "공사 울타리", "fence": "도로 밖 울타리"}
 	_ui.flash("쿵! %s에 부딪혔어요 (화물 -%d)" % [what.get(kind, ""), dmg], UiTheme.COLOR_BAD)
 	_truck.self_modulate = Color(1, 0.5, 0.5)
 	create_tween().tween_property(_truck, "self_modulate", Color.WHITE, 0.35)
@@ -447,16 +507,16 @@ func _knock_away(node: Sprite2D) -> void:
 	if side == Vector2.ZERO:
 		side = Vector2.RIGHT
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(node, "position", node.position + side * 60.0 + _vel * 0.15, 0.45) \
+	tw.tween_property(node, "position", node.position + side * 50.0 + _vel * 0.15, 0.45) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_property(node, "rotation", TAU, 0.45)
+	tw.tween_property(node, "rotation", node.rotation + TAU, 0.45)
 	tw.tween_property(node, "modulate:a", 0.0, 0.45).set_delay(0.15)
 	tw.chain().tween_callback(node.queue_free)
 
 
 # ---------------------------------------------------------------- booster
 func _boost() -> void:
-	if _state != State.RACING:
+	if _state != State.DRIVING:
 		return
 	if _charges > 0:
 		_charges -= 1
@@ -492,11 +552,14 @@ func _normal(o: float) -> Vector2:
 func _sync_sprites() -> void:
 	_truck.position = _pos
 	_truck.rotation = _heading
-	for r: Dictionary in _rivals:
-		var s: Sprite2D = r["sprite"]
-		var o := float(r["offset"])
-		s.position = _rival_pos(r)
-		s.rotation = _tangent(o).angle() + PI / 2.0
+	for c: Dictionary in _traffic:
+		var s: Sprite2D = c["node"]
+		var o := float(c["offset"])
+		s.visible = o >= 0.0
+		if not s.visible:
+			continue
+		s.position = _car_pos(c)
+		s.rotation = _tangent(o).angle() + PI / 2.0 + (PI if float(c["speed"]) < 0.0 else 0.0)
 	_fx.update(_pos, _heading, _boost_t > 0.0, _drifting)
 	_cam.position = _pos + _vel * 0.3
 
@@ -505,11 +568,8 @@ func progress() -> float:
 	return clampf(_offset / _length, 0.0, 1.0)
 
 
-func rival_progress() -> Array[float]:
-	var out: Array[float] = []
-	for r: Dictionary in _rivals:
-		out.append(float(r["offset"]) / _length)
-	return out
+func time_left() -> float:
+	return time_limit - maxf(_t, 0.0)
 
 
 func charges() -> int:
@@ -532,136 +592,278 @@ func player_pos() -> Vector2:
 	return _pos
 
 
-func rival_positions() -> Array[Vector2]:
-	var out: Array[Vector2] = []
-	for r: Dictionary in _rivals:
-		out.append(_rival_pos(r))
-	return out
-
-
 # ================================================================ drawing helpers
-## The road and its surroundings, drawn once.
+## Paved yard in front of the start and destination buildings.
+class Yard:
+	extends Node2D
+	var radius := 80.0
+
+	func _ready() -> void:
+		z_index = -6
+
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, radius + 4.0, Color("261e2c"))
+		draw_circle(Vector2.ZERO, radius, Color("d8d2c4"))
+		var y := -radius + 10.0
+		while y < radius:
+			var w := sqrt(maxf(radius * radius - y * y, 0.0))
+			draw_line(Vector2(-w, y), Vector2(w, y), Color("c8c2b4"), 1.0)
+			y += 12.0
+
+
+## The road and its surroundings for the course theme, drawn once.
 class TrackView:
 	extends Node2D
 	var _curve: Curve2D
 	var _theme: Dictionary
 	var _seed := 0
+	const INK := Color("261e2c")
 
-	func setup(c: Curve2D, theme: Dictionary, seed_value: int, finish_name: String) -> void:
+	func setup(c: Curve2D, theme: Dictionary, seed_value: int) -> void:
 		_curve = c
 		_theme = theme
 		_seed = seed_value
 		z_index = -10
-		var total := c.get_baked_length()
-		var end := c.sample_baked(total)
-		var board := PanelContainer.new()
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color("8a5a36")
-		sb.border_color = Color("261e2c")
-		sb.set_border_width_all(1)
-		sb.set_corner_radius_all(2)
-		sb.content_margin_left = 4
-		sb.content_margin_right = 4
-		board.add_theme_stylebox_override("panel", sb)
-		board.add_child(UiTheme.make_label("도착: " + finish_name, UiTheme.SIZE, Color("fbf3dc"), true))
-		add_child(board)
-		board.reset_size()
-		board.position = (end + Vector2(-board.size.x / 2.0, -70)).round()
 
 	func _draw() -> void:
 		var pts := _curve.get_baked_points()
 		var r := Rect2(pts[0], Vector2.ZERO)
 		for p in pts:
 			r = r.expand(p)
-		r = r.grow(900)
-		draw_rect(r, _theme["ground"])
-		_draw_decor(pts)
-		var edge: Color = _theme["edge"]
-		var road: Color = _theme["road"]
-		draw_polyline(pts, edge, RaceGame.ROAD_HALF * 2.0 + 8.0)
-		for p in pts:
-			draw_circle(p, RaceGame.ROAD_HALF + 4.0, edge)
-		draw_polyline(pts, road, RaceGame.ROAD_HALF * 2.0)
-		for p in pts:
-			draw_circle(p, RaceGame.ROAD_HALF, road)
-		var total := _curve.get_baked_length()
-		var o := 40.0
-		while o < total - 40.0:  # center dashes
-			var a := _curve.sample_baked(o)
-			var b := _curve.sample_baked(o + 16.0)
-			draw_line(a, b, Color("f0d060"), 3.0)
-			o += 40.0
-		_checkered(60.0)
-		_checkered(total - 20.0)
-
-	func _checkered(o: float) -> void:
-		var a := _curve.sample_baked(maxf(o - 4.0, 0.0))
-		var b := _curve.sample_baked(o + 4.0)
-		var t := (b - a).normalized()
-		var n := t.orthogonal()
-		var c := _curve.sample_baked(o)
-		for i in 12:
-			for j in 2:
-				var col := Color.WHITE if (i + j) % 2 == 0 else Color("202028")
-				var p := c + n * (-RaceGame.ROAD_HALF + i * RaceGame.ROAD_HALF / 6.0) + t * (j * 6.0 - 6.0)
-				draw_colored_polygon(PackedVector2Array([p, p + n * (RaceGame.ROAD_HALF / 6.0),
-						p + n * (RaceGame.ROAD_HALF / 6.0) + t * 6.0, p + t * 6.0]), col)
-
-	func _draw_decor(pts: PackedVector2Array) -> void:
+		draw_rect(r.grow(900), _theme["ground"])
+		if _theme.has("band"):
+			_draw_band()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 1000 + _seed
-		var kind := str(_theme["decor"])
-		var colors: Array = _theme["decor_colors"]
-		var ink := Color("261e2c")
+		_draw_decor(rng)
+		if _theme.has("sidewalk"):
+			_thick(pts, _theme["sidewalk"], RaceGame.ROAD_HALF + 22.0)
+		_thick(pts, _theme["edge"], RaceGame.ROAD_HALF + 4.0)
+		_thick(pts, _theme["road"], RaceGame.ROAD_HALF)
+		if _theme.has("fence"):
+			_draw_fences(_theme["fence"])
 		var total := _curve.get_baked_length()
+		var o := 40.0
+		while o < total - 40.0:  # center line
+			draw_line(_curve.sample_baked(o), _curve.sample_baked(o + 16.0), Color("f0d060"), 3.0)
+			o += 40.0
+		if _theme.has("sidewalk"):  # crosswalks now and then
+			o = 500.0
+			while o < total - 300.0:
+				_crosswalk(o)
+				o += 900.0
+
+	func _thick(pts: PackedVector2Array, col: Color, half: float) -> void:
+		draw_polyline(pts, col, half * 2.0)
+		for i in range(0, pts.size(), 2):
+			draw_circle(pts[i], half, col)
+		draw_circle(pts[pts.size() - 1], half, col)
+
+	func _tangent(o: float) -> Vector2:
+		var total := _curve.get_baked_length()
+		return (_curve.sample_baked(minf(o + 6.0, total)) - _curve.sample_baked(maxf(o - 6.0, 0.0))).normalized()
+
+	## A river (or the sea, wider with a beach) along the left side of the road.
+	func _draw_band() -> void:
+		var col: Color = _theme["band"]
+		var sea := _theme.has("sea")
+		var width := 260.0 if sea else 110.0
+		var total := _curve.get_baked_length()
+		var line := PackedVector2Array()
+		var o := 0.0
+		var dist := RaceGame.ROAD_HALF + 70.0 + width / 2.0
+		while o <= total:
+			line.append(_curve.sample_baked(o) + _tangent(o).orthogonal() * dist)
+			o += 16.0
+		draw_polyline(line, col.lightened(0.55) if sea else Color("6fae4f"), width + 40.0)
+		draw_polyline(line, col, width)
+		draw_polyline(line, col.lightened(0.18), width * 0.35)
+
+	## Wooden post-and-rail fences along both sides of a country road.
+	func _draw_fences(col: Color) -> void:
+		var total := _curve.get_baked_length()
+		var o := 20.0
+		while o < total - 44.0:
+			var o2 := o + 24.0
+			for side: float in [-1.0, 1.0]:
+				var p := _curve.sample_baked(o) + _tangent(o).orthogonal() * side * (RaceGame.ROAD_HALF + 12.0)
+				var q := _curve.sample_baked(o2) + _tangent(o2).orthogonal() * side * (RaceGame.ROAD_HALF + 12.0)
+				draw_line(p, q, col, 2.0)
+				draw_rect(Rect2(p - Vector2(2, 2), Vector2(4, 4)), col.darkened(0.3))
+			o = o2
+
+	func _crosswalk(o: float) -> void:
+		var c := _curve.sample_baked(o)
+		var t := _tangent(o)
+		var n := t.orthogonal()
+		for k in 7:
+			var a := c + n * (-RaceGame.ROAD_HALF + 6.0 + k * 13.0)
+			draw_colored_polygon(PackedVector2Array([a - t * 8.0, a - t * 8.0 + n * 7.0, a + t * 8.0 + n * 7.0, a + t * 8.0]),
+					Color(1, 1, 1, 0.85))
+
+	func _draw_decor(rng: RandomNumberGenerator) -> void:
+		var table: Array = _theme["decor"]
+		var weight := 0
+		for e: Array in table:
+			weight += int(e[1])
+		var colors: Array = _theme["colors"]
+		var total := _curve.get_baked_length()
+		var start := _curve.sample_baked(0.0)
+		var end := _curve.sample_baked(total)
+		var near_road := RaceGame.ROAD_HALF + (52.0 if _theme.has("sidewalk") else 30.0)
+		var band_far := RaceGame.ROAD_HALF + 70.0 + (300.0 if _theme.has("sea") else 140.0)
+		var tries := int(_theme.get("density", 1))
 		var o := 0.0
 		while o < total:
 			var c := _curve.sample_baked(o)
-			var t := (_curve.sample_baked(minf(o + 6.0, total)) - _curve.sample_baked(maxf(o - 6.0, 0.0))).normalized()
+			var t := _tangent(o)
 			var n := t.orthogonal()
-			for side: float in [-1.0, 1.0]:
-				var p := c + n * side * (RaceGame.ROAD_HALF + rng.randf_range(36.0, 260.0)) + t * rng.randf_range(-30, 30)
-				if _curve.get_closest_point(p).distance_to(p) < RaceGame.ROAD_HALF + 28.0:
+			var sides: Array[float] = []
+			for k in tries:
+				sides.append_array([-1.0, 1.0])
+			for side: float in sides:
+				var lo := near_road
+				if _theme.has("band") and side > 0.0:
+					lo = band_far  # the water side: things go past the water
+				var p := c + n * side * (lo + rng.randf_range(10.0, 230.0)) + t * rng.randf_range(-25, 25)
+				if _curve.get_closest_point(p).distance_to(p) < near_road:
 					continue  # too close to another part of the road
-				var col: Color = colors[rng.randi() % colors.size()]
-				match kind:
-					"building":
-						var s := Vector2(rng.randf_range(34, 60), rng.randf_range(30, 52))
-						var rect := Rect2(p - s / 2.0, s)
-						draw_rect(rect, col)
-						draw_rect(rect, ink, false, 2.0)
-						var y := rect.position.y + 6.0
-						while y < rect.end.y - 8.0:
-							var x := rect.position.x + 6.0
-							while x < rect.end.x - 8.0:
-								draw_rect(Rect2(x, y, 6, 6), Color("8ec8f0"))
-								x += 11.0
-							y += 11.0
-					"rock":
-						if rng.randf() < 0.5:
-							draw_circle(p, 12, col)
-							draw_arc(p, 12, 0, TAU, 14, ink, 2.0)
-						else:
-							draw_circle(p + Vector2(0, 6), 3, Color("7a5030"))
-							draw_colored_polygon(PackedVector2Array([p + Vector2(0, -16), p + Vector2(12, 6), p + Vector2(-12, 6)]), col)
-					"water":
-						if rng.randf() < 0.35:
-							draw_circle(p, rng.randf_range(26, 46), col)
-						else:
-							draw_circle(p, 10, colors[colors.size() - 1].darkened(0.2))
-							draw_arc(p, 10, 0, TAU, 12, ink, 2.0)
-					"stall":
-						var rect := Rect2(p - Vector2(18, 12), Vector2(36, 24))
-						draw_rect(rect, Color("f4ead8"))
-						for k in 4:
-							draw_rect(Rect2(rect.position.x + k * 9, rect.position.y, 9, 8), col if k % 2 == 0 else Color.WHITE)
-						draw_rect(rect, ink, false, 2.0)
-					_:  # tree
-						draw_circle(p + Vector2(0, 8), 3, Color("7a5030"))
-						draw_circle(p, 13, col)
-						draw_arc(p, 13, 0, TAU, 14, ink, 2.0)
-						draw_circle(p + Vector2(-4, -4), 4, col.lightened(0.25))
-			o += 70.0
+				if p.distance_to(start) < 190.0 or p.distance_to(end) < 230.0:
+					continue  # room for the buildings
+				var pick := rng.randi() % weight
+				var kind := ""
+				for e: Array in table:
+					pick -= int(e[1])
+					if pick < 0:
+						kind = str(e[0])
+						break
+				_decor(kind, p, colors[rng.randi() % colors.size()], rng)
+			o += 64.0
+
+	func _decor(kind: String, p: Vector2, col: Color, rng: RandomNumberGenerator) -> void:
+		match kind:
+			"tower":  # downtown building from above: roof, rooftop unit, window strips
+				var s := Vector2(rng.randf_range(48, 78), rng.randf_range(44, 70))
+				var rect := Rect2(p - s / 2.0, s)
+				draw_rect(Rect2(rect.position + Vector2(4, 4), s), Color(0, 0, 0, 0.18))
+				draw_rect(rect, col)
+				draw_rect(rect.grow(-4), col.lightened(0.12))
+				var y := rect.position.y + 8.0
+				while y < rect.end.y - 8.0:
+					draw_rect(Rect2(rect.position.x + 7, y, s.x - 14, 3), Color("8ec8f0"))
+					y += 9.0
+				draw_rect(Rect2(p - Vector2(8, 6), Vector2(16, 12)), col.darkened(0.25))
+				draw_rect(rect, INK, false, 2.0)
+			"apartment":  # long apartment block
+				var s := Vector2(rng.randf_range(80, 110), 34)
+				var rect := Rect2(p - s / 2.0, s)
+				draw_rect(Rect2(rect.position + Vector2(4, 4), s), Color(0, 0, 0, 0.18))
+				draw_rect(rect, col)
+				draw_rect(Rect2(rect.position, Vector2(s.x, 8)), Color("c86a5a"))
+				var x := rect.position.x + 5.0
+				while x < rect.end.x - 6.0:
+					draw_rect(Rect2(x, rect.position.y + 13, 5, 5), Color("8ec8f0"))
+					draw_rect(Rect2(x, rect.position.y + 23, 5, 5), Color("8ec8f0"))
+					x += 9.0
+				draw_rect(rect, INK, false, 2.0)
+			"shop":
+				var rect := Rect2(p - Vector2(24, 16), Vector2(48, 32))
+				draw_rect(rect, Color("f4ead8"))
+				draw_rect(Rect2(rect.position, Vector2(48, 10)), col)
+				draw_rect(Rect2(rect.position + Vector2(8, 16), Vector2(14, 12)), Color("8ec8f0"))
+				draw_rect(Rect2(rect.position + Vector2(28, 16), Vector2(12, 16)), Color("8a5a36"))
+				draw_rect(rect, INK, false, 2.0)
+			"stall":  # market stall with a striped awning and produce
+				var rect := Rect2(p - Vector2(18, 12), Vector2(36, 24))
+				draw_rect(rect, Color("f4ead8"))
+				for k in 4:
+					draw_rect(Rect2(rect.position.x + k * 9, rect.position.y, 9, 9), col if k % 2 == 0 else Color.WHITE)
+				for k in 3:
+					draw_circle(rect.position + Vector2(8 + k * 10, 17), 3, [Color("e05050"), Color("f0c040"), Color("5fbf6f")][k])
+				draw_rect(rect, INK, false, 2.0)
+			"crowd":
+				for k in 5:
+					var q := p + Vector2(rng.randf_range(-14, 14), rng.randf_range(-10, 10))
+					draw_circle(q, 4, [Color("e05050"), Color("4f8fe0"), Color("f0c040"), Color("5fbf6f")][k % 4])
+					draw_circle(q + Vector2(0, -3), 2.5, Color("ffe2c8"))
+			"house":  # farmhouse from above: colored roof with a ridge, a little yard
+				draw_rect(Rect2(p - Vector2(30, 24), Vector2(60, 48)), Color("d8c8a0"))
+				var roof := Rect2(p - Vector2(22, 14), Vector2(44, 28))
+				draw_rect(roof, col)
+				draw_line(Vector2(roof.position.x, p.y), Vector2(roof.end.x, p.y), col.darkened(0.35), 2.0)
+				draw_rect(roof, INK, false, 2.0)
+			"paddy":  # rice paddy with rows of seedlings (green, or ripe gold)
+				var gold := rng.randf() < 0.4
+				var s := Vector2(rng.randf_range(70, 100), rng.randf_range(50, 70))
+				var rect := Rect2(p - s / 2.0, s)
+				draw_rect(rect, Color("e0c860") if gold else Color("6fbf5a"))
+				var y := rect.position.y + 5.0
+				while y < rect.end.y - 3.0:
+					draw_line(Vector2(rect.position.x + 3, y), Vector2(rect.end.x - 3, y), Color("c8a840") if gold else Color("4f9f45"), 2.0)
+					y += 7.0
+				draw_rect(rect, Color("8a6a40"), false, 3.0)
+			"haystack":
+				draw_circle(p, 11, Color("e8d080"))
+				draw_arc(p, 11, 0, TAU, 14, INK, 2.0)
+				draw_arc(p, 6, 0, TAU, 10, Color("c8a850"), 1.0)
+			"persimmon":
+				_tree(p, Color("5f9f45"), 12)
+				for k in 4:
+					draw_circle(p + Vector2(rng.randf_range(-7, 7), rng.randf_range(-7, 7)), 2.2, Color("f08a30"))
+			"pine":
+				draw_circle(p + Vector2(3, 4), 12, Color(0, 0, 0, 0.15))
+				draw_colored_polygon(PackedVector2Array([p + Vector2(0, -16), p + Vector2(13, 8), p + Vector2(-13, 8)]), col)
+				draw_colored_polygon(PackedVector2Array([p + Vector2(0, -22), p + Vector2(9, -2), p + Vector2(-9, -2)]), col.lightened(0.15))
+				draw_polyline(PackedVector2Array([p + Vector2(0, -22), p + Vector2(13, 8), p + Vector2(-13, 8), p + Vector2(0, -22)]), INK, 2.0)
+			"rock":
+				draw_circle(p, 10, Color("9a9aa4"))
+				draw_circle(p + Vector2(-3, -3), 4, Color("b8b8c0"))
+				draw_arc(p, 10, 0, TAU, 12, INK, 2.0)
+			"reeds":
+				for k in 5:
+					var q := p + Vector2(k * 4 - 8, 0)
+					draw_line(q, q + Vector2(rng.randf_range(-3, 3), -14), Color("6f8f3a"), 2.0)
+					draw_rect(Rect2(q + Vector2(-1, -16), Vector2(3, 5)), Color("8a6a40"))
+			"palm":
+				draw_line(p, p + Vector2(4, -6), Color("8a6a40"), 3.0)
+				for k in 5:
+					draw_line(p + Vector2(4, -6), p + Vector2(4, -6) + Vector2.from_angle(k * TAU / 5.0) * 14.0, Color("3f9f45"), 4.0)
+				draw_circle(p + Vector2(4, -6), 3, Color("8a6a40"))
+			"parasol":
+				draw_circle(p, 13, col)
+				for k in 4:
+					draw_line(p, p + Vector2.from_angle(k * TAU / 4.0 + 0.4) * 13.0, Color.WHITE, 2.0)
+				draw_arc(p, 13, 0, TAU, 16, INK, 2.0)
+				draw_rect(Rect2(p + Vector2(10, 4), Vector2(14, 7)), Color("f4f0e0"))
+			"bench":
+				draw_rect(Rect2(p - Vector2(12, 4), Vector2(24, 8)), Color("b07a48"))
+				draw_rect(Rect2(p - Vector2(12, 4), Vector2(24, 8)), INK, false, 1.5)
+			"flowers":
+				draw_circle(p, 10, Color("5fa045"))
+				for k in 6:
+					draw_circle(p + Vector2.from_angle(k * 1.05) * 6.0, 2.2, [Color("ff8fb0"), Color("fff0a0"), Color.WHITE][k % 3])
+			"pond":
+				draw_circle(p, 26, Color("8a6a40"))
+				draw_circle(p, 23, Color("5aa0e0"))
+				draw_circle(p + Vector2(-6, -6), 6, Color("8ec8f0"))
+			"lamp":  # street light by the sidewalk
+				draw_circle(p, 9, Color(1.0, 0.95, 0.6, 0.35))
+				draw_circle(p, 3, INK)
+			"street_tree":
+				_tree(p, Color("4f9f45"), 10)
+			"playground":
+				draw_rect(Rect2(p - Vector2(28, 20), Vector2(56, 40)), Color("e8d0a0"))
+				draw_rect(Rect2(p - Vector2(20, 12), Vector2(14, 6)), Color("e05050"))
+				draw_circle(p + Vector2(10, 4), 7, Color("4f8fe0"))
+				draw_rect(Rect2(p - Vector2(28, 20), Vector2(56, 40)), INK, false, 2.0)
+			_:  # tree
+				_tree(p, col, 13)
+
+	func _tree(p: Vector2, col: Color, r: float) -> void:
+		draw_circle(p + Vector2(3, 4), r, Color(0, 0, 0, 0.15))
+		draw_circle(p, r, col)
+		draw_arc(p, r, 0, TAU, 14, INK, 2.0)
+		draw_circle(p + Vector2(-r * 0.3, -r * 0.3), r * 0.35, col.lightened(0.25))
 
 
 ## Tire marks left while drifting (a short ring buffer).
@@ -711,13 +913,12 @@ class Effects:
 				draw_rect(Rect2(Vector2(side + sin(a) * 2.0, 15 + fmod(a, 6.0)), Vector2(2, 2)), Color("ffd060"))
 
 
-## HUD: course info, cargo, place, time, boosters, drift gauge, minimap, touch buttons.
+## HUD: course, time left, cargo, boosters, drift gauge, minimap, touch buttons.
 class RaceHud:
 	extends CanvasLayer
 	var game: RaceGame
 	var _progress: ProgressBar
 	var _cargo: Label
-	var _place: Label
 	var _time: Label
 	var _boost: Label
 	var _gauge: ProgressBar
@@ -742,16 +943,14 @@ class RaceHud:
 		panel.add_child(vb)
 		vb.add_child(UiTheme.make_label("%s 납품 중" % Korean.ro(Story.destination_name()), UiTheme.SIZE, UiTheme.COLOR_BORDER, true))
 		vb.add_child(UiTheme.make_label("코스: " + track_name, UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM))
+		_time = UiTheme.make_label("", UiTheme.SIZE_LARGE, UiTheme.COLOR_TEXT, true)
+		vb.add_child(_time)
 		_progress = ProgressBar.new()
 		_progress.custom_minimum_size = Vector2(130, 8)
 		_progress.show_percentage = false
 		vb.add_child(_progress)
 		_cargo = UiTheme.make_label("", UiTheme.SIZE_SMALL)
 		vb.add_child(_cargo)
-		_place = UiTheme.make_label("", UiTheme.SIZE, UiTheme.COLOR_WARN, true)
-		vb.add_child(_place)
-		_time = UiTheme.make_label("", UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM)
-		vb.add_child(_time)
 		var tags := PackedStringArray()
 		if Story.is_urgent():
 			tags.append("긴급")
@@ -842,9 +1041,13 @@ class RaceHud:
 	func refresh() -> void:
 		_progress.value = game.progress() * 100.0
 		_cargo.text = "화물 상태 %d%%" % game.cargo
-		_place.text = "순위 %d / 4" % game.rank_now()
-		var t := game.elapsed()
-		_time.text = "%d:%02d / 제한 %d초" % [int(t) / 60, int(t) % 60, int(RaceGame.TIME_LIMIT)]
+		var left := game.time_left()
+		if left >= 0.0:
+			_time.text = "남은 시간 %d초" % ceili(left)
+			_time.add_theme_color_override("font_color", UiTheme.COLOR_BAD if left < 8.0 else UiTheme.COLOR_TEXT)
+		else:
+			_time.text = "기한 초과 +%d초" % ceili(-left)
+			_time.add_theme_color_override("font_color", UiTheme.COLOR_BAD)
 		var cans := ""
 		for i in RaceGame.MAX_CHARGES:
 			cans += "●" if i < game.charges() else "○"
@@ -860,7 +1063,7 @@ class RaceHud:
 		Dialogue.toast(text, color)
 
 
-## Whole course in the corner: road, rivals, the player.
+## Whole course in the corner: road, the destination, traffic, the player.
 class Minimap:
 	extends Control
 	var game: RaceGame
@@ -884,9 +1087,10 @@ class Minimap:
 			line.append(mp.call(_pts[i]))
 		line.append(mp.call(_pts[_pts.size() - 1]))
 		draw_polyline(line, Color("a0a4b4"), 3.0)
-		draw_circle(mp.call(_pts[_pts.size() - 1]), 3, Color("ef6b5b"))
-		var rp := game.rival_positions()
-		for i in rp.size():
-			draw_circle(mp.call(rp[i]), 2.5, RaceGame.RIVAL_COLORS[i])
+		var goal: Vector2 = mp.call(_pts[_pts.size() - 1])
+		draw_rect(Rect2(goal - Vector2(4, 4), Vector2(8, 8)), Color("ef6b5b"))
+		draw_rect(Rect2(goal - Vector2(4, 4), Vector2(8, 8)), Color.WHITE, false, 1.0)
+		for p in game.traffic_positions():
+			draw_circle(mp.call(p), 1.6, Color("d0d0d8"))
 		draw_circle(mp.call(game.player_pos()), 3.5, Color("ffe08a"))
 		draw_arc(mp.call(game.player_pos()), 3.5, 0, TAU, 10, Color.BLACK, 1.0)

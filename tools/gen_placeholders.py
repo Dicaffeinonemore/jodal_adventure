@@ -1219,6 +1219,11 @@ def make_title():
         d.ellipse([x - 8, y - 12, x + 8, y + 4], fill=c, outline=OUTLINE)
         d.ellipse([x - 5, y - 10, x, y - 5], fill=shade(c, 1.25))
 
+    # Buildings go on their own transparent layer: cropped below into bld_<id>.png for
+    # the driving minigame (start: 조달청, finish: the destination), then composited.
+    background = img
+    img = Image.new("RGBA", (W, H), T)
+    d = ImageDraw.Draw(img)
     # school (left)
     d.rectangle([6, 96, 58, 140], fill=(236, 210, 164, 255), outline=OUTLINE)
     d.polygon([(4, 96), (32, 82), (60, 96)], fill=(176, 92, 70, 255), outline=OUTLINE)
@@ -1260,6 +1265,17 @@ def make_title():
     fill(img, 264, 94, 314, 98, (110, 132, 170, 255))
     windows(267, 100, 312, 126, 4, 2)
     d.rectangle([282, 128, 296, 140], fill=(150, 206, 246, 255), outline=OUTLINE)
+    for name, box in (("school", (4, 81, 61, 141)), ("fire", (61, 103, 105, 141)), ("pps", (99, 29, 222, 141)),
+                      ("clinic", (217, 99, 262, 141)), ("center", (263, 93, 316, 141))):
+        part = img.crop(box)
+        if name == "pps":  # the neighbours overlap its roof line: keep only the 조달청 below the roof
+            for yy in range(63 - box[1], part.height):
+                for xx in list(range(0, 106 - box[0])) + list(range(215 - box[0], part.width)):
+                    part.putpixel((xx, yy), T)
+        part.save(OUT / f"bld_{name}.png")
+    background.alpha_composite(img)
+    img = background
+    d = ImageDraw.Draw(img)
     for x in (2, 60, 108, 212, 262, 318):  # trees and flowers on the sidewalk
         tree(x, 134)
     for x in range(4, W, 11):
@@ -1292,6 +1308,18 @@ def make_race():
     fill(crate, 6, 1, 7, 12, (170, 120, 70, 255))
     fill(crate, 1, 6, 12, 7, (170, 120, 70, 255))
     _save_outlined(crate, "race_crate.png")
+    bar = Image.new("RGBA", (38, 12), T)  # road-works barricade, spans one lane
+    fill(bar, 1, 2, 36, 7, (250, 250, 250, 255))
+    for k in range(-6, 38, 8):
+        for y in range(2, 8):
+            for xx in range(k + (y - 2), k + (y - 2) + 4):
+                if 1 <= xx <= 36:
+                    px(bar, xx, y, (240, 120, 40, 255))
+    fill(bar, 3, 8, 4, 10, (70, 70, 80, 255))
+    fill(bar, 33, 8, 34, 10, (70, 70, 80, 255))
+    fill(bar, 2, 0, 3, 1, (250, 220, 60, 255))
+    fill(bar, 34, 0, 35, 1, (250, 220, 60, 255))
+    _save_outlined(bar, "barricade.png")
     can = Image.new("RGBA", (10, 14), T)
     fill(can, 1, 1, 8, 12, (60, 170, 230, 255))
     fill(can, 1, 1, 8, 2, (200, 210, 220, 255))
