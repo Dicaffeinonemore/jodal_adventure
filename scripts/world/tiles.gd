@@ -9,18 +9,27 @@ const TILE := 16
 const TEXTURE_PATH := "res://assets/sprites/placeholder/tiles.png"
 
 ## Atlas column of each tile. Order must match TILE_COLORS in tools/gen_placeholders.py.
+## Order must match TILES in tools/gen_placeholders.py (append only).
 enum {
 	FLOOR, WALL, DESK, CARPET, PLANT, COUNTER, ASPHALT, PARKING_LINE, GRASS,
 	ENTRANCE, WINDOW_WALL, WOOD_FLOOR, PC_DESK, VENDING, BOARD, MIRROR, TICKET_MACHINE,
+	BOOKSHELF, WATER_COOLER, SOFA, RUG, PRINTER, TABLE, BED_HEAD, BED_FOOT,
+	WARDROBE, HOME_FLOOR, HOME_WALL, FRIDGE, DOOR_MAT,
 }
 
-const SOLID := [WALL, DESK, PLANT, COUNTER, WINDOW_WALL, PC_DESK, VENDING, BOARD, MIRROR, TICKET_MACHINE]
+const SOLID := [
+	WALL, DESK, PLANT, COUNTER, WINDOW_WALL, PC_DESK, VENDING, BOARD, MIRROR, TICKET_MACHINE,
+	BOOKSHELF, WATER_COOLER, SOFA, PRINTER, TABLE, BED_HEAD, BED_FOOT, WARDROBE, HOME_WALL, FRIDGE,
+]
 
 ## ASCII character -> tile.
 const LEGEND := {
 	".": FLOOR, "#": WALL, "D": DESK, ",": CARPET, "P": PLANT, "=": COUNTER,
 	"a": ASPHALT, "|": PARKING_LINE, "g": GRASS, "E": ENTRANCE, "W": WINDOW_WALL,
 	"w": WOOD_FLOOR, "C": PC_DESK, "V": VENDING, "B": BOARD, "M": MIRROR, "K": TICKET_MACHINE,
+	"S": BOOKSHELF, "O": WATER_COOLER, "F": SOFA, "r": RUG, "R": PRINTER, "T": TABLE,
+	"b": BED_HEAD, "n": BED_FOOT, "Z": WARDROBE, "h": HOME_FLOOR, "H": HOME_WALL, "f": FRIDGE,
+	"m": DOOR_MAT,
 }
 
 ## Characters that also spawn an interactable object with this id.
@@ -30,6 +39,10 @@ const OBJECT_CHARS := {
 	"K": "ticket_machine",
 	"B": "notice_board",
 	"M": "mirror",
+	"b": "bed",
+	"Z": "wardrobe",
+	"f": "fridge",
+	"O": "water_cooler",
 }
 
 static var _tileset: TileSet
