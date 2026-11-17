@@ -10,8 +10,10 @@
 
 ## 현재 상태 (중요)
 
-이 뼈대는 Godot을 실행할 수 없는 환경에서 작성되어 **gdtoolkit 문법 검사만 통과**했다.
-Godot 에디터/런타임에서는 아직 한 번도 실행되지 않았다. 첫 작업은 반드시 아래 "검증"이다.
+11/17 Godot 4.5.2에서 처음 실행·검증했다. `--import`, `--quit-after 600`, 장면별 단독 실행에서 오류 0건이고,
+헤드리스 스모크 테스트가 코어 루프 3바퀴(강제 퇴근·다음 날 보고·메뉴·저장/불러오기·퇴근 포함)를 통과한다.
+웹 빌드는 헤드리스 크롬에서 PC 모드와 모바일 에뮬레이션으로 확인했다. **휴대폰 실기 테스트는 아직이다**
+(`docs/playtest-checklist.md`).
 
 ## 기술 규칙 (바꾸지 말 것)
 
@@ -39,6 +41,10 @@ godot --headless --path . --import
 # 2) 게임을 잠깐 실행해서 런타임 오류 확인 (출력에 SCRIPT ERROR / ERROR가 없어야 함)
 godot --headless --path . --quit-after 600
 
+# 2-1) 코어 루프 자동 플레이 (마지막 줄이 SMOKE OK, SCRIPT ERROR가 없어야 함)
+#      타이틀 화면만 도는 2)와 달리 맵·운전·대화·저장 경로를 전부 실행한다. user://save.json을 지운다.
+godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
+
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
 mkdir -p build/web && godot --headless --path . --export-release "Web" build/web/index.html
 
@@ -47,7 +53,11 @@ python3 -m http.server 8000 -d build/web
 ```
 
 `--import`가 없는 버전이면 `godot --headless --path . --editor --quit`을 쓴다.
-기능을 끝낼 때마다 1)과 2)를 돌려 오류가 없음을 확인한 뒤 커밋한다.
+기능을 끝낼 때마다 1), 2), 2-1)을 돌려 오류가 없음을 확인한 뒤 커밋한다.
+릴리스 빌드는 스크립트 오류를 콘솔에 찍지 않는다. 웹에서만 나는 문제는 `--export-debug`로 내보내 브라우저 콘솔을 본다.
+
+웹 주의: `JavaScriptBridge.eval()`은 JS bool을 int, 숫자를 float로 돌려준다. `== true` 비교는 런타임 오류이므로 문자열로 받는다.
+웹에서는 `emulate_touch_from_mouse` 때문에 `DisplayServer.is_touchscreen_available()`이 항상 true다. 터치 판정은 `GameState.is_touch_device()`만 쓴다.
 
 ## 구조
 
@@ -78,6 +88,7 @@ scripts/minigames/drive_game.gd  운전(운송) 미니게임
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            갈무리 폰트 (OFL)
 assets/sprites/placeholder/  임시 도트 (tools/gen_placeholders.py로 생성)
+tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)
 tools/, docs/            Godot이 무시함(.gdignore)
 ```
 
