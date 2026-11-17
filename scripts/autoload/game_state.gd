@@ -53,6 +53,7 @@ var task: Dictionary = {}  # current task; shape documented in Story
 # --- session-only state ---
 var force_touch_ui := false
 var _input_locks := 0
+var _web_touch := -1  # cached browser answer: -1 unknown, 0 no, 1 yes
 
 
 # ---------------------------------------------------------------- new game
@@ -222,6 +223,17 @@ func is_touch_device() -> bool:
 		return true
 	if OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios"):
 		return true
+	if OS.has_feature("web"):
+		# Not DisplayServer.is_touchscreen_available(): with emulate_touch_from_mouse
+		# (project.godot) it is true in every browser, PCs included. Ask the browser
+		# whether the primary pointer is a finger (phones, tablets, iPadOS Safari).
+		if _web_touch < 0:
+			# Return a string: JavaScriptBridge.eval turns JS booleans into int and
+			# numbers into float, and comparing those with == true is a script error.
+			var coarse: Variant = JavaScriptBridge.eval(
+					"window.matchMedia('(pointer: coarse)').matches ? 'yes' : 'no'", true)
+			_web_touch = 1 if str(coarse) == "yes" else 0
+		return _web_touch == 1
 	return DisplayServer.is_touchscreen_available() and not OS.has_feature("pc")
 
 
