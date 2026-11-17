@@ -1,0 +1,52 @@
+; Engine configuration file.
+; Hand-written skeleton for Godot 4.5+ (TileMapLayer needs 4.3+).
+; Input actions are registered at runtime by scripts/autoload/input_setup.gd.
+
+config_version=5
+
+[application]
+
+config/name="출근! 조달청 신입"
+config/description="조달청 신입 육성 시뮬레이션 (2026 조달청 AI 게임·콘텐츠 공모전 출품작)"
+run/main_scene="res://scenes/title/title.tscn"
+config/features=PackedStringArray("4.5", "GL Compatibility")
+config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.09, 0.1, 0.14, 1)
+
+[autoload]
+
+InputSetup="*res://scripts/autoload/input_setup.gd"
+UiTheme="*res://scripts/autoload/ui_theme.gd"
+GameState="*res://scripts/autoload/game_state.gd"
+ItemDB="*res://scripts/autoload/item_db.gd"
+SceneRouter="*res://scripts/autoload/scene_router.gd"
+Dialogue="*res://scripts/autoload/dialogue.gd"
+Story="*res://scripts/systems/story.gd"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=360
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="viewport"
+window/stretch/aspect="expand"
+window/handheld/orientation=0
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[physics]
+
+common/physics_ticks_per_second=60
+2d/default_gravity=0.0
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
+2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true
+environment/defaults/default_clear_color=Color(0.09, 0.1, 0.14, 1)
