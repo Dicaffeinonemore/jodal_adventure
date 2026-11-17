@@ -44,6 +44,7 @@ func goto(path: String, spawn: String = "") -> void:
 		return
 	busy = true
 	next_spawn = spawn
+	Sound.play("door")
 	GameState.lock_input()
 	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
 	var out := create_tween()

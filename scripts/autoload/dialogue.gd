@@ -38,6 +38,8 @@ var _choices: VBoxContainer
 var _toast_box: VBoxContainer
 
 var _typing := false
+var _blip_at := 0  # next character that makes a typing blip
+var _choice_ready := false  # skip the select sound for the first, automatic focus
 var _waiting := false
 var _shown := 0.0
 var _total := 0
@@ -141,6 +143,9 @@ func _process(delta: float) -> void:
 	if _typing:
 		_shown += delta * CHARS_PER_SEC
 		_text.visible_characters = int(_shown)
+		if int(_shown) >= _blip_at:
+			_blip_at = int(_shown) + 3
+			Sound.play("blip", 0.05)
 		if int(_shown) >= _total:
 			_finish_typing()
 	if _waiting:
@@ -173,10 +178,13 @@ func choose(speaker: String, prompt: String, options: Array) -> int:
 		b.text = str(options[i])
 		b.custom_minimum_size = Vector2(120, 22)
 		b.pressed.connect(_on_choice.bind(i))
+		b.focus_entered.connect(_on_choice_focus)
 		_choices.add_child(b)
 	_choices.show()
+	_choice_ready = false
 	if _choices.get_child_count() > 0:
 		(_choices.get_child(0) as Button).grab_focus()
+	_choice_ready = true
 	var index: int = await _chosen
 	_choices.hide()
 	for child in _choices.get_children():
@@ -199,6 +207,12 @@ func set_overlay(open: bool) -> void:
 
 ## Short non-blocking message at the top of the screen.
 func toast(text: String, color: Color = Color("f4f1e8")) -> void:
+	if color == UiTheme.COLOR_BAD:
+		Sound.play("bad")
+	elif color == UiTheme.COLOR_WARN:
+		Sound.play("warn")
+	elif color != UiTheme.COLOR_DIM:
+		Sound.play("pop")
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UiTheme.panel_box(0.85))
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -244,6 +258,7 @@ func _type(text: String) -> void:
 	_total = text.length()
 	_shown = 0.0
 	_text.visible_characters = 0
+	_blip_at = 0
 	_typing = true
 	await _typed
 
@@ -279,6 +294,11 @@ func _on_panel_input(event: InputEvent) -> void:
 			_panel.accept_event()
 			if not _choices.visible:  # with choices up, tap a choice button instead
 				_advance()
+
+
+func _on_choice_focus() -> void:
+	if _choice_ready:
+		Sound.play("select")
 
 
 func _on_choice(index: int) -> void:

@@ -66,6 +66,8 @@ var _center_label: Label
 
 func _ready() -> void:
 	GameState.reset_input_locks()
+	Sound.play_bgm("drive")
+	Sound.play("engine")
 	_rng.randomize()
 	if Story.is_urgent():
 		_duration = URGENT_DURATION
@@ -180,6 +182,7 @@ func _spawn(kind: String, lane: int) -> void:
 
 
 func _collect(kind: String) -> void:
+	Sound.play(kind, 0.06)  # "star" / "repair"
 	if kind == "star":
 		stars += 1
 		GameState.add_money(Story.STAR_BONUS)
@@ -193,6 +196,7 @@ func _collect(kind: String) -> void:
 
 
 func _hit(damage: int, kind: String) -> void:
+	Sound.play("crash", 0.1)
 	damage = roundi(damage * _damage_mult)
 	if GameState.condition() == GameState.Condition.GOOD:
 		damage = roundi(damage * 0.8)

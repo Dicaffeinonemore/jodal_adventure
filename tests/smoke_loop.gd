@@ -77,9 +77,11 @@ func _run() -> void:
 	await _drain_dialogue()
 	_check(int(gs.call("item_count", "energybar")) == bars + 1, "fridge gave no energy bar")
 
+	_check(str(_a("Sound").call("current_bgm")) == "home", "home music not playing")
 	_step = "commute"
 	await _walk_out(Vector2i(8, 6))
 	_check(_map() == "office", "home door did not lead to the office")
+	_check(str(_a("Sound").call("current_bgm")) == "town", "office music not playing")
 	await _until(func() -> bool: return _a("Dialogue").get("is_open") == true, "office intro never opened")
 	await _drain_dialogue()
 	_check(gs.call("has_flag", "intro_done"), "intro_done flag missing")
@@ -185,6 +187,8 @@ func _run() -> void:
 		_check(str(gs.get("map_id")) == "office", "map not restored by load")
 		_check(int(gs.call("upgrade_level", "truck")) == 1, "upgrades not restored by load")
 
+	_a("Sound").call("stop_all")  # playing streams would be reported as leaked at exit
+	await _frames(10)
 	print("SMOKE OK" if not _failed else "SMOKE FAILED at: " + _step)
 	quit(1 if _failed else 0)
 
@@ -226,6 +230,7 @@ func _one_task(i: int) -> void:
 	await _drain_dialogue()  # option 0 = 출발
 	await _wait_router()
 	_check(current_scene.has_method("_drive"), "drive scene not loaded")
+	_check(str(_a("Sound").call("current_bgm")) == "drive", "drive music not playing")
 
 	_step = "task %d: drive" % (i + 1)
 	if i == 0:

@@ -276,7 +276,10 @@ func _confirm_popup() -> Control:
 func _select(index: int) -> void:
 	if _rows.is_empty():
 		return
+	var before := _selected
 	_selected = posmod(index, _rows.size())
+	if _selected != before:
+		Sound.play("select")
 	for i in _rows.size():
 		var on := i == _selected
 		_rows[i].add_theme_stylebox_override("panel",
@@ -289,16 +292,19 @@ func _ask_confirm() -> void:
 	var texts: Array = _data.get("confirm", [])
 	_confirm_text.text = str(texts[_selected]) if _selected < texts.size() else ""
 	_confirm.show()
+	Sound.play("confirm")
 
 
 func _close_confirm() -> void:
 	_confirm.hide()
+	Sound.play("cancel")
 
 
 func _finish(index: int) -> void:
 	if _finished:
 		return
 	_finished = true
+	Sound.play("stamp" if index >= 0 else "cancel")
 	hide()
 	_done.emit(index)
 
@@ -357,6 +363,7 @@ func _chip(text: String, color: Color) -> PanelContainer:
 func _button(text: String, primary: bool) -> Button:
 	var b := Button.new()
 	b.text = text
+	b.set_meta("sfx_off", true)  # this window plays its own sounds
 	b.focus_mode = Control.FOCUS_NONE  # keys go through _unhandled_input
 	b.custom_minimum_size = Vector2(72, 22)
 	var base := NAVY if primary else Color("dde3ec")

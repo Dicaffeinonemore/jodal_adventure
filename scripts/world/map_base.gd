@@ -70,6 +70,7 @@ func on_map_ready() -> void:
 func _ready() -> void:
 	# Drop locks leaked by an interrupted dialogue; SceneRouter re-locks during fades.
 	GameState.reset_input_locks()
+	Sound.play_bgm(Sound.bgm_for_map(map_id()))
 	ground = TileMapLayer.new()
 	ground.name = "Ground"
 	ground.tile_set = Tiles.get_tileset()

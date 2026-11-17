@@ -388,7 +388,7 @@ func open_menu() -> void:
 	if _busy:
 		return
 	_busy = true
-	var c: int = await Dialogue.choose("메뉴", "무엇을 할까요?", ["업무 정보", "가방", "성장·시설", "저장하기", "타이틀로", "닫기"])
+	var c: int = await Dialogue.choose("메뉴", "무엇을 할까요?", ["업무 정보", "가방", "성장·시설", "저장하기", "소리 설정", "타이틀로", "닫기"])
 	match c:
 		0:
 			await _task_info()
@@ -400,12 +400,26 @@ func open_menu() -> void:
 			GameState.save_game()
 			Dialogue.toast("저장했어요.")
 		4:
+			await _sound_menu()
+		5:
 			var yes: int = await Dialogue.choose("메뉴", "타이틀로 돌아갈까요? (저장하지 않은 진행은 사라져요)", ["돌아가기", "취소"])
 			if yes == 0:
 				_busy = false
 				SceneRouter.goto(SceneRouter.TITLE)
 				return
 	_busy = false
+
+
+func _sound_menu() -> void:
+	var names: Array = ["배경음악 + 효과음", "효과음만", "소리 끄기"]
+	var options: Array = []
+	for i in names.size():
+		options.append(("● " if i == Sound.mode else "○ ") + str(names[i]))
+	options.append("닫기")
+	var c: int = await Dialogue.choose("소리 설정", "소리를 어떻게 할까요?", options)
+	if c < names.size():
+		Sound.set_mode(c as Sound.Mode)
+		Dialogue.toast("소리: " + str(names[c]))
 
 
 ## Bottom menu bar (HUD). Each opens one panel of the menu directly.
@@ -502,6 +516,7 @@ func play_home_intro() -> void:
 	while _busy or Dialogue.is_open:
 		await get_tree().process_frame
 	_busy = true
+	Sound.play("alarm")
 	await Dialogue.say("", [
 		"띠리리리! 알람이 울려요.",
 		"오늘은 조달청 첫 출근 날! %s 씨, 일어날 시간이에요." % GameState.player_name,
@@ -789,6 +804,7 @@ func _use_bed() -> void:
 	var c: int = await Dialogue.choose("", "푹 자고 내일을 맞을까요?", ["잔다", "조금 더 깨어 있기"])
 	if c != 0:
 		return
+	Sound.play("sleep")
 	GameState.end_day()
 	await SceneRouter.goto(SceneRouter.HOME, "bed")
 	Dialogue.toast("%d일차 아침! 일당 %s원이 들어왔어요." % [GameState.day, Korean.comma(GameState.daily_pay())], UiTheme.COLOR_GOOD)
@@ -939,6 +955,7 @@ func _use_ticket_machine() -> void:
 	if not GameState.spend_money(int(meal["price"])):
 		Dialogue.toast("돈이 부족해요.", UiTheme.COLOR_BAD)
 		return
+	Sound.play("ticket")
 	Dialogue.toast("%s 식권이 나왔어요!" % meal["name"])
 	var r := ItemDB.eat(meal_id)
 	GameState.advance_clock(30)
@@ -992,6 +1009,7 @@ func _on_forced_leave() -> void:
 	while _busy or Dialogue.is_open or SceneRouter.busy:
 		await get_tree().process_frame
 	_busy = true
+	Sound.play("jingle_bad")
 	await Dialogue.say(npc_name("narumi"), ["앗, 너무 무리했어요! 피로도가 한계예요.", "오늘은 여기까지 하고 집에 가서 푹 쉬어요."])
 	await _go_home_evening(true)
 	_busy = false

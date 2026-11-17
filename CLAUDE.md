@@ -51,6 +51,10 @@ godot --headless --path . --quit-after 600
 #      --headless를 빼고 `-- --shots=<절대 경로>`를 붙이면 주요 화면 스크린샷을 저장한다.
 godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
 
+# 2-2) 소리 파일 확인 (헤드리스는 소리를 재생하지 않으므로 임포트 결과만 본다. 마지막 줄이 AUDIO OK)
+#      소리를 바꾼 뒤: python tools/gen_audio.py -> 1) -> 2-2)
+godot --headless --path . --script res://tests/audio_check.gd
+
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
 mkdir -p build/web && godot --headless --path . --export-release "Web" build/web/index.html
 
@@ -84,6 +88,8 @@ scripts/autoload/        전역 싱글톤 (project.godot의 순서대로 로드)
   item_db.gd             아이템·구내식당 메뉴(MEALS) 정의와 효과 적용
   scene_router.gd        페이드 장면 전환, next_spawn
   dialogue.gd            대화창 say()/choose()/toast() (크림색 말풍선), 전체 화면 창 플래그 set_overlay()
+  sound.gd (마지막)      배경음악 play_bgm()(맵별 MAP_BGM, 크로스페이드)·효과음 play(), 소리 설정(user://settings.json).
+                         버튼은 자동으로 confirm 소리(meta "sfx_off"면 제외), 보상 팝업은 글자·색으로 소리를 고른다
 scripts/systems/
   story.gd (autoload)    코어 루프, 수요기관(DESTINATIONS), NPC 대화, 자판기·구내식당, 메뉴, 인트로, 강제 퇴근
   korean.gd              조사(을/를, 이/가, 로/으로...), 천 단위 쉼표
@@ -108,7 +114,9 @@ scripts/minigames/drive_game.gd  운전(운송) 미니게임
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            갈무리 폰트 (OFL)
 assets/sprites/placeholder/  임시 도트 (tools/gen_placeholders.py로 생성)
+assets/audio/            임시 칩튠 BGM 3곡(bgm_home·town·drive, 루프)·효과음 21종 (tools/gen_audio.py로 합성, QOA 압축 임포트)
 tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)
+tests/audio_check.gd     소리 파일 임포트 확인 (BGM 루프, 효과음 존재)
 tools/, docs/            Godot이 무시함(.gdignore)
 ```
 
@@ -151,7 +159,8 @@ tools/, docs/            Godot이 무시함(.gdignore)
 
 - 대화 초상화 없음 (이름 색만 있음).
 - 터치 UI 여백이 고정값. `DisplayServer.get_display_safe_area()`로 노치 대응 필요 (P1).
-- 사운드 없음 (P1). 오디오는 첫 터치 이후 재생해야 한다(타이틀 화면에서 시작).
+- 소리는 코드로 합성한 임시 칩튠이다. 진짜 음원으로 바꾸려면 같은 파일명으로 덮어쓴다(BGM은 .import의 loop_mode=2 유지).
+  웹에서는 첫 터치 이후에만 재생된다(타이틀 화면의 첫 탭에서 시작, `Sound.unlocked`).
 - 품질 검사 미니게임 없음 (P1). 현재 검수는 숫자 계산만 한다.
 - P1 NPC(선배 주무관, 업체 사장님, 식당 이모)는 배치만 되어 있고 대사가 짧다.
 - 모바일 웹에서 이름 입력은 브라우저 `prompt()`로 처리한다. 실기에서 확인 필요.

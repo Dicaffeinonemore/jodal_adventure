@@ -190,6 +190,7 @@ func _process(delta: float) -> void:
 	var bite := int(_t / BITE_EVERY)
 	if cycle >= 0.65 and bite != _last_bite:
 		_last_bite = bite
+		Sound.play("nom", 0.08)
 		_bubble.show()
 		_bubble_t = 0.35
 		_visual.position = FEET + Vector2(0, 1)
@@ -205,6 +206,7 @@ func _process(delta: float) -> void:
 
 func _show_result() -> void:
 	_phase = Phase.RESULT
+	Sound.play("jingle_good")
 	_set_food_frame(2)
 	_steam.hide()
 	_bubble.hide()

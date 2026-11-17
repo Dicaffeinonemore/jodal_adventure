@@ -1,6 +1,6 @@
 extends Control
 ## Title: "화면을 터치해서 출근하기". The first tap/key is also the user gesture the
-## browser needs before it allows fullscreen and audio, so start BGM here (P1).
+## browser needs before it allows fullscreen and audio, so the music starts here.
 
 var _prompt: Label
 var _buttons: VBoxContainer
@@ -12,6 +12,8 @@ var _cast: Array[AtlasTexture] = []
 func _ready() -> void:
 	GameState.reset_input_locks()
 	UiTheme.apply(self)
+	if Sound.unlocked:  # back from the game: the browser already allows audio
+		Sound.play_bgm("home")
 	var bg := ColorRect.new()
 	bg.color = Color("1b2440")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -91,6 +93,9 @@ func _input(event: InputEvent) -> void:
 		return
 	_started = true
 	get_viewport().set_input_as_handled()
+	Sound.unlocked = true
+	Sound.play("confirm")
+	Sound.play_bgm("home")
 	# Browsers only allow fullscreen inside an input event; do it on phones only.
 	if GameState.is_touch_device():
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)

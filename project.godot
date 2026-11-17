@@ -22,6 +22,7 @@ ItemDB="*res://scripts/autoload/item_db.gd"
 SceneRouter="*res://scripts/autoload/scene_router.gd"
 Dialogue="*res://scripts/autoload/dialogue.gd"
 Story="*res://scripts/systems/story.gd"
+Sound="*res://scripts/autoload/sound.gd"
 
 [display]
 
