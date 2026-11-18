@@ -3,12 +3,12 @@ extends Control
 ## browser needs before it allows fullscreen and audio, so the music starts here.
 
 ## The town at 2x (assets title_town.png, 320x180): destinations on both sides and the
-## 조달청 in the middle, with the title as a banner on its roof. Clouds and a delivery
+## 조달청 in the middle (its sign and flag carry the pixel logo, drawn into the image),
+## with the title as a banner on its roof. Clouds and a delivery
 ## truck move; the cast stands at the entrance. Image coordinates go through _stage.
 
 const SPRITES := "res://assets/sprites/placeholder/"
 const TOWN := Vector2(320, 180)
-const SIGN_CENTER := Vector2(160, 104)  # sign plate on the 조달청 building
 const ROOF_Y := 58.0
 
 var _prompt: Label
@@ -20,7 +20,6 @@ var _stage: Node2D
 var _clouds: Array[Sprite2D] = []
 var _truck: Sprite2D
 var _banner: VBoxContainer
-var _sign: Label
 var _sound_btn: Button
 
 
@@ -64,9 +63,6 @@ func _ready() -> void:
 		_stage.add_child(a)
 		_cast.append(a)
 
-	_sign = UiTheme.make_label("조달청", UiTheme.SIZE, Color.WHITE, true)
-	_sign.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_sign)
 
 	# title banner on the roof
 	_banner = VBoxContainer.new()
@@ -134,8 +130,6 @@ func _layout() -> void:
 	var s := maxf(view.x / TOWN.x, view.y / TOWN.y)
 	_stage.scale = Vector2(s, s)
 	_stage.position = ((view - TOWN * s) / 2.0).round()
-	_sign.reset_size()
-	_sign.position = (_to_screen(SIGN_CENTER) - _sign.size / 2.0).round()
 	_banner.reset_size()
 	_banner.position = (Vector2(_to_screen(Vector2(160, 0)).x, _to_screen(Vector2(0, ROOF_Y)).y) 			- Vector2(_banner.size.x / 2.0, _banner.size.y)).round()
 

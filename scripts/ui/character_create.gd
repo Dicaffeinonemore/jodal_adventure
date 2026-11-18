@@ -52,9 +52,10 @@ func _ready() -> void:
 	_preview.scale = Vector2(PREVIEW_SCALE, PREVIEW_SCALE)
 	_preview.position = Vector2(70, 130)
 	holder.add_child(_preview)
-	var card_label := UiTheme.make_label("조달청", UiTheme.SIZE_SMALL, UiTheme.COLOR_DIM)
-	card_label.position = Vector2(8, 4)
-	holder.add_child(card_label)
+	var card_logo := TextureRect.new()  # ID card: the 조달청 pixel logo (tools/gen_placeholders.py make_logo)
+	card_logo.texture = load("res://assets/sprites/placeholder/pps_logo.png") as Texture2D
+	card_logo.position = Vector2(6, 4)
+	holder.add_child(card_logo)
 
 	# form
 	var form := VBoxContainer.new()

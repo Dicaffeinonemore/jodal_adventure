@@ -488,70 +488,109 @@ def firefighter_gear(mid, top, row, col, b):
     fill(top, X0 - 1, 5 + b, X0 + 16, 5 + b, dark)  # brim
 
 
-def stork(img, ox, b):
-    """나르미: white stork with a long orange beak and black wing tips."""
-    W, Wd, K, O, R = (252, 252, 255, 255), (214, 218, 232, 255), (44, 44, 58, 255), (246, 150, 50, 255), (230, 90, 70, 255)
+# ------------------------------------------------------------------ mascots
+# 나르미 (white stork: big egg-shaped head with a crest swept back to the right, light
+# blue goggles, orange beak, red neckerchief, wings with black tips, orange feet) and
+# 달이 (orange squirrel: round ears, three stripes on the forehead, white lower face,
+# white belly, brown backpack straps, tail behind on the right), drawn after the
+# official mascot image (tools/ref/mascots.png). One grid row per pixel row; frame 2
+# drops one head row (the idle bob).
+MASCOT_PAL = {
+    "o": OUTLINE[:3], "W": (252, 252, 255), "w": (230, 233, 242), "s": (200, 206, 222),
+    "b": (104, 156, 188), "B": (176, 218, 236), "h": (228, 246, 252), "E": (28, 28, 36), "H": (255, 255, 255),
+    "O": (242, 152, 70), "q": (206, 112, 52), "R": (222, 44, 52), "r": (160, 30, 40), "K": (52, 52, 62),
+    "F": (240, 156, 80), "N": (242, 160, 78), "n": (214, 122, 58), "L": (250, 192, 118), "i": (252, 238, 228),
+    "P": (232, 112, 56), "U": (132, 82, 50), "u": (96, 58, 38),
+}
+NARUMI = [
+    "................ooo.....",
+    "..........ooooooWWWoo...",
+    "........ooWWWWWWWWWWWo..",
+    "......ooWWWWWWWWWWWWssoo",
+    ".....oWWWWWWWWWWWWWWWWWo",
+    "....oWWWWWWWWWWWWWWsssoo",
+    "...oWWWWWWWWWWWWWWWWWWo.",
+    "...oWWWWWWWWWWWWWWWWsso.",
+    "..oWWWWWWWWWWWWWWWWWWWo.",
+    "..oWbbbbbbbbbbbbbbbbWo..",
+    "..oWbhhhhhBBBBBBBBBbWo..",
+    "..oWbBBEHBBBBBBEHBBbWo..",
+    "..oWbBBEEBBBBBBEEBBbWo..",
+    "..oWbBBEEBbbbbBEEBBbWo..",
+    "..oWbBBBBBbOObBBBBBbWo..",
+    "..owWbbbbbWqqWbbbbbWso..",
+    "...owWWWWWWWWWWWWWWso...",
+    "....owwWWWWWWWWWWsso....",
+    ".....ooossssssssooo.....",
+    "......oRRRRRRRRRRRRo....",
+    "......orrrrrrrrrrrRRo...",
+    ".....ooWWWWWWWWWWWrRo...",
+    "...ooWWWWWWWWWWWWWWoo...",
+    "..oWWWWsWWWWWWWWsWWWWo..",
+    ".oKWWWWowWWWWWWsoWWWWKo.",
+    ".oKKKWooWWWWWWWsooWKKKo.",
+    "..oKKoo.oWWWWWWo.ooKKo..",
+    "...oo...oFFooFFoKKooo...",
+    "........oFFooFFo........",
+    "......oFFFFooFFFFo......",
+    ".......oooo..oooo.......",
+]
+DARI = [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "....ooo..........ooo....",
+    "...oNNNo........oNNNo...",
+    "..oNiiiNo......oNiiiNo..",
+    "..oNiiiNooooooooNiiiNo..",
+    "..oNNiNNNnNNnNnNNNiNNo..",
+    "..oNNNNNNnNNnNnNNNNNNo..",
+    "..oNNNNNNnNNnNnNNNNNNo..",
+    "..oLNNNNNNNNNNNNNNNNNo..",
+    "..oLNNNNNNNNNNNNNNNNno..",
+    "..oNNNNNEHNNNNEHNNNNno..",
+    "..oNNNNNEENNNNEENNNNno..",
+    "..oWWWWWEEWPPWEEWWWWwo..",
+    "..owWWWWWWWEEWWWWWWWwo..",
+    "...owWWWWWEWWEWWWWWwo...",
+    "....owwwwwwwwwwwwwwo....",
+    ".....oooooooooooooo.ooo.",
+    ".....oNUNNNNNNNNUNooWWo.",
+    ".....oNUNNWWWWNNUNoNWWo.",
+    ".....oNuNWWWWWWNuNoNNWo.",
+    ".....oNNNWWWWWWNNNoNNNo.",
+    ".....onNNWWWWWWNNnonNNo.",
+    ".....onNNNWWWWNNNnoNNo..",
+    "......oNNNooooNNNooo....",
+    "......onnno..onnno......",
+    ".......ooo....ooo.......",
+]
+
+
+def grid_layer(rows, pal):
     lay = Image.new("RGBA", (FW, FH), T)
-    d = ImageDraw.Draw(lay)
-    d.line([(9, 25), (9, 29)], fill=R)
-    d.line([(14, 25), (14, 29)], fill=R)
-    d.line([(8, 29), (10, 29)], fill=R)
-    d.line([(13, 29), (15, 29)], fill=R)
-    d.ellipse([6, 13 + b, 17, 26], fill=W)
-    d.ellipse([7, 20 + b, 16, 26], fill=Wd)
-    d.ellipse([3, 15 + b, 8, 24], fill=K)
-    d.ellipse([15, 15 + b, 20, 24], fill=K)
-    d.ellipse([5, 2 + b, 18, 14 + b], fill=W)
-    fill(lay, 8, 7 + b, 9, 8 + b, EYE)
-    fill(lay, 14, 7 + b, 15, 8 + b, EYE)
-    px(lay, 8, 7 + b, EYE_HI)
-    px(lay, 14, 7 + b, EYE_HI)
-    fill(lay, 6, 10 + b, 7, 10 + b, BLUSH)
-    fill(lay, 16, 10 + b, 17, 10 + b, BLUSH)
-    d.polygon([(10, 10 + b), (13, 10 + b), (12, 17 + b), (11, 17 + b)], fill=O)
-    fill(lay, 10, 15 + b, 13, 16 + b, TIE)  # tiny tie: she works here too
-    outline(lay)
-    img.paste(lay, (ox, 0), lay)
+    for y, row in enumerate(rows):
+        assert len(row) == FW, (y, row)
+        for x, ch in enumerate(row):
+            if ch != ".":
+                lay.putpixel((x, y), pal[ch] + (255,))
+    return lay
 
 
-def squirrel(img, ox, b):
-    """달이: brown squirrel with a big striped tail and a green scarf."""
-    N, Nd, C, G = (196, 124, 64, 255), (150, 90, 48, 255), (248, 222, 180, 255), (90, 170, 110, 255)
-    lay = Image.new("RGBA", (FW, FH), T)
-    d = ImageDraw.Draw(lay)
-    d.ellipse([13, 3, 23, 23], fill=N)
-    d.ellipse([16, 6, 21, 19], fill=Nd)
-    d.ellipse([6, 15 + b, 16, 28], fill=N)
-    d.ellipse([8, 18 + b, 14, 27], fill=C)
-    fill(lay, 7, 28, 9, 29, Nd)
-    fill(lay, 13, 28, 15, 29, Nd)
-    d.ellipse([3, 4 + b, 16, 16 + b], fill=N)
-    d.polygon([(4, 6 + b), (5, 1 + b), (8, 4 + b)], fill=N)
-    d.polygon([(15, 6 + b), (14, 1 + b), (11, 4 + b)], fill=N)
-    d.ellipse([5, 9 + b, 14, 16 + b], fill=C)
-    fill(lay, 6, 8 + b, 7, 9 + b, EYE)
-    fill(lay, 12, 8 + b, 13, 9 + b, EYE)
-    px(lay, 6, 8 + b, EYE_HI)
-    px(lay, 12, 8 + b, EYE_HI)
-    fill(lay, 9, 11 + b, 10, 11 + b, (90, 50, 40, 255))
-    fill(lay, 4, 11 + b, 5, 11 + b, BLUSH)
-    fill(lay, 14, 11 + b, 15, 11 + b, BLUSH)
-    fill(lay, 6, 16 + b, 15, 17 + b, G)
-    fill(lay, 13, 18 + b, 14, 20 + b, G)
-    outline(lay)
-    img.paste(lay, (ox, 0), lay)
-
-
-def mascot(name, fn):
+def mascot(name, rows, bob_row):
     img = Image.new("RGBA", (FW * 2, FH), T)
-    for c in range(2):
-        fn(img, c * FW, c)
+    for c, frame in enumerate((rows, ["." * FW] + rows[:bob_row] + rows[bob_row + 1:])):
+        lay = grid_layer(frame, MASCOT_PAL)
+        img.paste(lay, (c * FW, 0), lay)
     img.save(OUT / f"npc_{name}.png")
 
 
 def make_npcs():
-    mascot("narumi", stork)
-    mascot("dari", squirrel)
+    mascot("narumi", NARUMI, 7)
+    mascot("dari", DARI, 13)
     human_npc("team_leader", outfit(), (52, 62, 112), (70, 70, 76), 0, 0, glasses)
     human_npc("officer_school", outfit(tie=None), (96, 160, 110), (130, 84, 52), 3, 1, glasses)
     human_npc("senior", outfit(tie=(250, 210, 90, 255)), (196, 120, 156), (60, 46, 46), 2, 1)
@@ -1249,6 +1288,58 @@ def make_event_scenes():
     _room_bg((250, 236, 206, 255), (196, 150, 102, 255), "event_room.png", room)
 
 
+# ------------------------------------------------------------------ 조달청 logo
+# Pixelized from the official symbol (tools/ref/pps_logo.jpg: emblem + wordmark).
+# The colors are reduced to the logo's own navy / red / gray; white becomes clear.
+LOGO_REF = Path(__file__).resolve().parent / "ref" / "pps_logo.jpg"
+LOGO_EMBLEM_BOX = (180, 31, 608, 445)  # in the reference image
+LOGO_TEXT_BOX = (712, 155, 1257, 337)
+LOGO_NAVY, LOGO_RED, LOGO_GRAY = (5, 56, 99, 255), (228, 3, 45, 255), (87, 85, 86, 255)
+
+
+def _logo_quant(img, pal, white_bias):
+    out = Image.new("RGBA", img.size, T)
+    src = img.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            c = src[x, y]
+            best, best_d = None, None
+            for q in pal + [(255, 255, 255, 0)]:
+                dist = sum((a - b) ** 2 for a, b in zip(c, q[:3])) * (white_bias if q[3] == 0 else 1)
+                if best_d is None or dist < best_d:
+                    best, best_d = q, dist
+            out.putpixel((x, y), best if best[3] else T)
+    return out
+
+
+def logo_emblem(size):
+    ref = Image.open(LOGO_REF).convert("RGB")
+    return _logo_quant(ref.crop(LOGO_EMBLEM_BOX).resize((size, size), Image.BOX), [LOGO_NAVY, LOGO_RED], 1.6)
+
+
+def logo_wordmark(height):
+    ref = Image.open(LOGO_REF).convert("RGB").crop(LOGO_TEXT_BOX)
+    w = round(ref.width * height / ref.height)
+    return _logo_quant(ref.resize((w, height), Image.BOX), [LOGO_GRAY], 1.3)
+
+
+def logo(emblem=14, text=10, gap=3):
+    """Horizontal logo (emblem, then 조달청), transparent background."""
+    em, tx = logo_emblem(emblem), logo_wordmark(text)
+    img = Image.new("RGBA", (em.width + gap + tx.width, max(em.height, tx.height)), T)
+    img.alpha_composite(em, (0, (img.height - em.height) // 2))
+    img.alpha_composite(tx, (em.width + gap, (img.height - tx.height) // 2))
+    return img
+
+
+def make_logo():
+    """pps_logo.png: the pixel logo on a white plate (ID card in character creation)."""
+    lg = logo(16, 11, 4)
+    plate = Image.new("RGBA", (lg.width + 8, lg.height + 6), (255, 255, 255, 255))
+    plate.alpha_composite(lg, (4, 3))
+    plate.save(OUT / "pps_logo.png")
+
+
 def make_title():
     """Title screen town (320x180, shown at 2x): destinations on both sides, 조달청 in the middle."""
     W, H = 320, 180
@@ -1307,16 +1398,17 @@ def make_title():
     # 조달청 (center): wide government building, columns, flag
     d.rectangle([106, 60, 214, 140], fill=(232, 228, 216, 255), outline=OUTLINE)
     d.rectangle([100, 54, 220, 62], fill=(196, 190, 176, 255), outline=OUTLINE)
-    windows(112, 66, 208, 98, 6, 2)
-    d.rectangle([128, 99, 192, 109], fill=(36, 72, 154, 255), outline=OUTLINE)  # sign plate (label on top)
+    windows(112, 64, 208, 94, 6, 2)
+    d.rectangle([130, 96, 190, 111], fill=(255, 255, 255, 255), outline=OUTLINE)  # sign: the pixel logo
+    sign = logo(14, 10, 3)
+    img.alpha_composite(sign, (160 - sign.width // 2, 97 + (14 - sign.height) // 2))
     for cx in range(118, 206, 14):  # columns at the entrance
         d.rectangle([cx, 112, cx + 5, 140], fill=(250, 248, 240, 255), outline=OUTLINE)
     d.rectangle([150, 118, 170, 140], fill=(150, 206, 246, 255), outline=OUTLINE)
     fill(img, 160, 118, 160, 140, OUTLINE)
-    fill(img, 159, 30, 160, 54, OUTLINE)  # flagpole + flag
-    d.rectangle([161, 30, 177, 40], fill=(255, 255, 255, 255), outline=OUTLINE)
-    d.ellipse([165, 31, 173, 39], fill=(214, 60, 70, 255))
-    d.pieslice([165, 31, 173, 39], 0, 180, fill=(40, 80, 170, 255))
+    fill(img, 211, 30, 212, 54, OUTLINE)  # flagpole at the right end of the roof (the title banner covers the middle)
+    d.rectangle([213, 29, 231, 41], fill=(255, 255, 255, 255), outline=OUTLINE)  # flag with the emblem
+    img.alpha_composite(logo_emblem(9), (218, 31))
     # clinic
     d.rectangle([218, 100, 260, 140], fill=(244, 246, 250, 255), outline=OUTLINE)
     fill(img, 218, 100, 260, 103, (96, 184, 146, 255))
@@ -1329,7 +1421,7 @@ def make_title():
     fill(img, 264, 94, 314, 98, (110, 132, 170, 255))
     windows(267, 100, 312, 126, 4, 2)
     d.rectangle([282, 128, 296, 140], fill=(150, 206, 246, 255), outline=OUTLINE)
-    for name, box in (("school", (4, 81, 61, 141)), ("fire", (61, 103, 105, 141)), ("pps", (99, 29, 222, 141)),
+    for name, box in (("school", (4, 81, 61, 141)), ("fire", (61, 103, 105, 141)), ("pps", (99, 29, 233, 141)),
                       ("clinic", (217, 99, 262, 141)), ("center", (263, 93, 316, 141))):
         part = img.crop(box)
         if name == "pps":  # the neighbours overlap its roof line: keep only the 조달청 below the roof
@@ -1585,6 +1677,7 @@ if __name__ == "__main__":
     make_meal_scene()
     make_products()
     make_event_scenes()
+    make_logo()
     make_title()
     make_extra_buildings()
     make_race()

@@ -139,7 +139,8 @@ scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_con
                          event_window.gd(짧은 이벤트 장면 창: carry = 일 돕기, inspect = 검사관 결과)
                          phone_menu.gd(Esc 메뉴 = 스마트폰 홈 화면: 시계·체력 배터리·앱 6개(phone_apps.png)·오늘 할 일 알림)
                          volume_window.gd(소리 설정 창: 배경음악·효과음 음량. 타이틀 [소리 설정]과 폰 [소리] 앱, Story.volume_settings())
-                         title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물, 지붕 위 타이틀 간판
+                         title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물(간판·깃발에 픽셀 로고), 지붕 위 타이틀 간판
+                         splash_screen.gd(메인 장면): 조달청 로고(assets/splash/pps_logo.png) -> Story.CREDIT("Made By 이승훈") -> 타이틀. 키·탭으로 넘김
 scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn): 조달청 -> 수요기관 건물까지 제한 시간 안에 도착(경주 아님).
                                  자동 가속, ←→ 핸들, ↓ 감속(BRAKE_SPEED), Shift 드리프트(게이지 -> 부스터), Q 에너지 드링크 부스터. 장애물은 오가는 차·공사 울타리.
                                  공정 규칙(11/18): 맞은편 차는 적고 느리며 멀리서 나오고 가까우면 "!", 추월 중인 플레이어와 마주치면 갓길로 비켜 감속,
@@ -149,7 +150,9 @@ scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn): 조
 scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            레벨업 폰트 Regular·Bold (OFL)
-assets/sprites/placeholder/  임시 도트 (tools/gen_placeholders.py로 생성)
+assets/sprites/placeholder/  도트 (tools/gen_placeholders.py로 생성). 나르미·달이는 공식 마스코트 그림(tools/ref/mascots.png)을 보고 그린 픽셀 격자(NARUMI·DARI),
+                         조달청 로고는 tools/ref/pps_logo.jpg를 픽셀화(make_logo, 타이틀 간판·깃발, 출입증 pps_logo.png)
+assets/splash/           스플래시용 조달청 로고 원본(축소본)
 assets/audio/            임시 칩튠 BGM 3곡(bgm_home·town·drive, 루프)·효과음 21종 (tools/gen_audio.py로 합성, QOA 압축 임포트)
 tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)
 tests/audio_check.gd     소리 파일 임포트 확인 (BGM 루프, 효과음 존재)

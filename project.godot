@@ -8,10 +8,11 @@ config_version=5
 
 config/name="출근! 조달청 신입"
 config/description="조달청 신입 육성 시뮬레이션 (2026 조달청 AI 게임·콘텐츠 공모전 출품작)"
-run/main_scene="res://scenes/title/title.tscn"
+run/main_scene="res://scenes/splash/splash.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 config/icon="res://icon.svg"
-boot_splash/bg_color=Color(0.09, 0.1, 0.14, 1)
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/show_image=false
 
 [autoload]
 

@@ -18,6 +18,9 @@ extends Node
 
 enum Step { NONE, ACCEPTED, VENDOR_CHOSEN, ARRIVED, DELIVERED }
 
+## Opening credit (SplashScreen), after the 조달청 logo.
+const CREDIT := "Made By 이승훈"
+
 # Balancing (initial values). One task costs about 35 fatigue, so the third task
 # of the day hits the limit unless the player eats, drinks or upgrades the lounge.
 const DAILY_TASKS := 3

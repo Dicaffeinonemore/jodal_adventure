@@ -47,12 +47,13 @@ func _ready() -> void:
 	layer.add_child(_fade)
 
 
-func goto(path: String, spawn: String = "") -> void:
+func goto(path: String, spawn: String = "", door_sound: bool = true) -> void:
 	if busy:
 		return
 	busy = true
 	next_spawn = spawn
-	Sound.play("door")
+	if door_sound:
+		Sound.play("door")
 	GameState.lock_input()
 	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
 	var out := create_tween()
