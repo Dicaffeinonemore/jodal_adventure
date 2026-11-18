@@ -1,4 +1,6 @@
-Copyright &copy; 2019–2025 Lee Minseo (quiple@quiple.dev)
+Copyright 2026 Hada Type Foundry. Copyright 2023 Kil Hyung-jin. Copyright 2014-2021 Adobe.
+
+LevelUp (레벨업) font: assets/fonts/LevelUp-Regular.ttf, LevelUp-Bold.ttf
 
 This font software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

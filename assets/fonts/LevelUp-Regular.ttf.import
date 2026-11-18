@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://3ef0lyd7xqwr"
-path="res://.godot/imported/Galmuri9.ttf-98ce197f22f89047170858fe1b62fb4f.fontdata"
+uid="uid://dhwt645pgkft4"
+path="res://.godot/imported/LevelUp-Regular.ttf-519b1b66b6a6b9ca2f3ca09f4ab10720.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Galmuri9.ttf"
-dest_files=["res://.godot/imported/Galmuri9.ttf-98ce197f22f89047170858fe1b62fb4f.fontdata"]
+source_file="res://assets/fonts/LevelUp-Regular.ttf"
+dest_files=["res://.godot/imported/LevelUp-Regular.ttf-519b1b66b6a6b9ca2f3ca09f4ab10720.fontdata"]
 
 [params]
 

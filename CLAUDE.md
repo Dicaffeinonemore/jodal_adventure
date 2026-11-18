@@ -22,9 +22,10 @@
 
 - Godot **4.5 이상**, 렌더러 **Compatibility**(웹은 이것만 지원), 언어 **GDScript만**(Godot 4의 C#은 웹 내보내기 불가).
 - 웹 내보내기는 **Thread Support 끔**(단일 스레드). iOS 사파리 호환과 일반 호스팅을 위해서다.
-- 기준 해상도 640×360, stretch `viewport` + aspect `expand`. 픽셀아트는 Nearest 필터, 정수 배율.
-- 한글은 반드시 번들 폰트(갈무리, `UiTheme`)로 표시한다. 웹에는 시스템 폰트가 없어서 기본 폰트로는 한글이 네모로 깨진다.
-  Galmuri11 12px 기준(12, 24). 11/18부터 작은 글씨(`SIZE_SMALL`)도 Galmuri11 12px다(Galmuri9 10px는 휴대폰에서 읽기 어려웠다).
+- 기준 해상도 640×360, stretch `canvas_items` + aspect `expand`. 픽셀아트는 Nearest 필터.
+  (11/18 레벨업 폰트로 바꾸면서 `viewport`에서 변경. 글씨를 화면 해상도로 그려 선명하게 하려고. 되돌리면 글씨가 뿌옇게 번진다.)
+- 한글은 반드시 번들 폰트(레벨업 LevelUp, `UiTheme`)로 표시한다. 웹에는 시스템 폰트가 없어서 기본 폰트로는 한글이 네모로 깨진다.
+  외곽선 폰트(Regular·Bold, SIL OFL 1.1, `assets/fonts/OFL-LevelUp.md`). 크기는 `SIZE`·`SIZE_SMALL` 12, `SIZE_LARGE` 24.
   자동 줄바꿈 라벨은 `UiTheme.keep_words()`를 거친다(한글 음절 사이 U+2060을 넣어 단어 중간에서 줄이 안 바뀌게).
 - 입력은 **액션만** 읽는다(`move_*`, `interact`, `cancel`, `quick_item`, `run`, 하단 바 단축키 `menu_task` B·`menu_bag` I·`menu_growth` C·`menu_save` U). 액션은 `scripts/autoload/input_setup.gd`에서 코드로 등록한다. 터치 UI는 같은 액션을 누른다.
 - 캐릭터 이동은 상하좌우 4방향만. 대각선 금지.
@@ -147,7 +148,7 @@ scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn): 조
                                  출발·도착 건물 그림은 assets bld_<id>.png(tools/gen_placeholders.py가 타이틀 마을에서 잘라 냄)
 scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
-assets/fonts/            갈무리 폰트 (OFL)
+assets/fonts/            레벨업 폰트 Regular·Bold (OFL)
 assets/sprites/placeholder/  임시 도트 (tools/gen_placeholders.py로 생성)
 assets/audio/            임시 칩튠 BGM 3곡(bgm_home·town·drive, 루프)·효과음 21종 (tools/gen_audio.py로 합성, QOA 압축 임포트)
 tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)

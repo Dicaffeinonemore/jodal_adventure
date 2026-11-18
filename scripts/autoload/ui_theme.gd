@@ -2,15 +2,15 @@ extends Node
 ## Fonts, colors and the shared Theme.
 ##
 ## Web builds have no system fonts, so Hangul only renders if every Control uses
-## the bundled Galmuri pixel font (SIL OFL 1.1, assets/fonts/OFL-Galmuri.md).
-## Galmuri11 is drawn for 12 px; keep font sizes at multiples of 12 (12, 24) so
-## glyphs stay crisp. 11/18 readability patch: small text (SIZE_SMALL) used to be
-## Galmuri9 at 10 px, hard to read on phones; it is now Galmuri11 at 12 px too
-## (bold small text was Galmuri11-Bold at 10 px, off its pixel grid = blurry).
+## the bundled LevelUp font (레벨업, SIL OFL 1.1, assets/fonts/OFL-LevelUp.md).
+## 11/18: replaced the Galmuri pixel font for readability. LevelUp is an outline
+## font, so the project stretches in canvas_items mode: text is drawn at the real
+## screen resolution (sharp), while pixel art keeps Nearest filtering. In viewport
+## mode the 12 px text would be drawn at 640x360 and blown up = blurry.
 
-const FONT_REGULAR: FontFile = preload("res://assets/fonts/Galmuri11.ttf")
-const FONT_BOLD: FontFile = preload("res://assets/fonts/Galmuri11-Bold.ttf")
-const FONT_SMALL: FontFile = preload("res://assets/fonts/Galmuri11.ttf")
+const FONT_REGULAR: FontFile = preload("res://assets/fonts/LevelUp-Regular.ttf")
+const FONT_BOLD: FontFile = preload("res://assets/fonts/LevelUp-Bold.ttf")
+const FONT_SMALL: FontFile = preload("res://assets/fonts/LevelUp-Regular.ttf")
 const SIZE := 12
 const SIZE_SMALL := 12
 const SIZE_LARGE := 24
@@ -29,9 +29,9 @@ var theme: Theme
 
 
 func _enter_tree() -> void:
-	for f: FontFile in [FONT_REGULAR, FONT_BOLD, FONT_SMALL]:
-		f.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-		f.hinting = TextServer.HINTING_NONE
+	for f: FontFile in [FONT_REGULAR, FONT_BOLD, FONT_SMALL]:  # smooth outlines, rendered at screen size
+		f.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
+		f.hinting = TextServer.HINTING_LIGHT
 		f.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	ThemeDB.fallback_font = FONT_REGULAR
 	ThemeDB.fallback_font_size = SIZE
@@ -56,7 +56,7 @@ func edge_margin() -> float:
 
 ## Text for autowrapped labels: puts an invisible WORD JOINER (U+2060) between Hangul
 ## syllables so lines break only at spaces. Godot's line breaker treats every Hangul
-## syllable as a break point and splits words mid-word. Galmuri draws nothing for it.
+## syllable as a break point and splits words mid-word. It is a default-ignorable character: nothing is drawn.
 func keep_words(text: String) -> String:
 	var out := PackedStringArray()
 	var prev_hangul := false
