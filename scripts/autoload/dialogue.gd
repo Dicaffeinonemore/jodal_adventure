@@ -43,6 +43,7 @@ var _choice_ready := false  # skip the select sound for the first, automatic foc
 var _waiting := false
 var _shown := 0.0
 var _total := 0
+var _rate := 1.0  # text length / visible length (UiTheme.keep_words adds invisible joiners)
 var _blink := 0.0
 
 
@@ -141,10 +142,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if _typing:
-		_shown += delta * CHARS_PER_SEC
+		_shown += delta * CHARS_PER_SEC * _rate
 		_text.visible_characters = int(_shown)
 		if int(_shown) >= _blip_at:
-			_blip_at = int(_shown) + 3
+			_blip_at = int(_shown) + roundi(3 * _rate)
 			Sound.play("blip", 0.05)
 		if int(_shown) >= _total:
 			_finish_typing()
@@ -254,6 +255,9 @@ func _set_speaker(speaker: String) -> void:
 
 
 func _type(text: String) -> void:
+	var plain := text.length()
+	text = UiTheme.keep_words(text)  # wrap at spaces only
+	_rate = float(text.length()) / maxf(plain, 1.0)  # joiners are invisible: type them faster
 	_text.text = text
 	_total = text.length()
 	_shown = 0.0

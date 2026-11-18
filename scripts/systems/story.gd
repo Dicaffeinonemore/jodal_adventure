@@ -521,15 +521,19 @@ func open_menu() -> void:
 
 
 func _sound_menu() -> void:
-	var names: Array = ["배경음악 + 효과음", "효과음만", "소리 끄기"]
-	var options: Array = []
-	for i in names.size():
-		options.append(("● " if i == Sound.mode else "○ ") + str(names[i]))
-	options.append("닫기")
-	var c: int = await Dialogue.choose("소리 설정", "소리를 어떻게 할까요?", options)
-	if c < names.size():
-		Sound.set_mode(c as Sound.Mode)
-		Dialogue.toast("소리: " + str(names[c]))
+	await volume_settings()
+
+
+## Volume window (title screen and the phone's 소리 app).
+func volume_settings() -> void:
+	var w := VolumeWindow.new()
+	get_tree().root.add_child(w)
+	var hint := "- + 버튼이나 막대를 눌러 조절해요" if GameState.is_touch_device() 		else "↑ ↓ 고르기 · ← → 크기 · Esc 닫기"
+	await w.run({
+		"title": "소리 설정", "rows": ["배경음악", "효과음"], "off": "끔",
+		"btn_close": "닫기", "hint": hint,
+	})
+	w.queue_free()
 
 
 ## Bottom menu bar (HUD). Each opens one panel of the menu directly.
@@ -609,6 +613,23 @@ func on_map_ready(map: String) -> void:
 		_:
 			if DESTINATIONS.has(map) and step() == Step.ARRIVED and destination_id() == map:
 				Dialogue.toast("%s에 도착! %s께 가요." % [destination_name(), (DESTINATIONS[map] as Dictionary)["where"]])
+
+
+## Guide popup before a drive: the first drive of the game and every school run
+## (11/18 playtest: players pressed ↑ ↓). {} = no popup.
+func drive_guide() -> Dictionary:
+	var place := destination_id()
+	if place != "school" and GameState.has_flag("drive_guide"):
+		return {}
+	GameState.set_flag("drive_guide")
+	var lines: Array = []
+	if GameState.is_touch_device():
+		lines = ["◀ ▶ 버튼만 이용하세요!", "가속은 자동이라 핸들만 꺾으면 돼요."]
+	else:
+		lines = ["좌우 화살표(← →)만 이용하세요!", "가속은 자동이라 ↑ ↓ 화살표는 누르지 않아도 돼요."]
+	if place == "school":
+		lines.append("학교 가는 길은 차와 공사 구간이 적고 시간도 넉넉해요.")
+	return {"title": "운전 안내", "lines": lines, "btn": "알겠어요!"}
 
 
 ## Called by the drive minigame when the trip ends.

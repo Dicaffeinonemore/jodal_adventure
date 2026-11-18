@@ -24,7 +24,8 @@
 - 웹 내보내기는 **Thread Support 끔**(단일 스레드). iOS 사파리 호환과 일반 호스팅을 위해서다.
 - 기준 해상도 640×360, stretch `viewport` + aspect `expand`. 픽셀아트는 Nearest 필터, 정수 배율.
 - 한글은 반드시 번들 폰트(갈무리, `UiTheme`)로 표시한다. 웹에는 시스템 폰트가 없어서 기본 폰트로는 한글이 네모로 깨진다.
-  Galmuri11은 12px 기준(12, 24), Galmuri9는 10px.
+  Galmuri11 12px 기준(12, 24). 11/18부터 작은 글씨(`SIZE_SMALL`)도 Galmuri11 12px다(Galmuri9 10px는 휴대폰에서 읽기 어려웠다).
+  자동 줄바꿈 라벨은 `UiTheme.keep_words()`를 거친다(한글 음절 사이 U+2060을 넣어 단어 중간에서 줄이 안 바뀌게).
 - 입력은 **액션만** 읽는다(`move_*`, `interact`, `cancel`, `quick_item`, `run`, 하단 바 단축키 `menu_task` B·`menu_bag` I·`menu_growth` C·`menu_save` U). 액션은 `scripts/autoload/input_setup.gd`에서 코드로 등록한다. 터치 UI는 같은 액션을 누른다.
 - 캐릭터 이동은 상하좌우 4방향만. 대각선 금지.
 - 정적 타이핑을 쓴다. `Dictionary` 값처럼 타입이 Variant인 식에는 `:=` 대신 `var x: int = ...`로 명시한다.
@@ -104,7 +105,7 @@ scripts/autoload/        전역 싱글톤 (project.godot의 순서대로 로드)
   item_db.gd             아이템·구내식당 메뉴(MEALS) 정의와 효과 적용
   scene_router.gd        페이드 장면 전환, next_spawn
   dialogue.gd            대화창 say()/choose()/toast() (크림색 말풍선), 전체 화면 창 플래그 set_overlay()
-  sound.gd (마지막)      배경음악 play_bgm()(맵별 MAP_BGM, 크로스페이드)·효과음 play(), 소리 설정(user://settings.json).
+  sound.gd (마지막)      배경음악 play_bgm()(맵별 MAP_BGM, 크로스페이드)·효과음 play(), 음량(배경음악·효과음 0~10, user://settings.json).
                          버튼은 자동으로 confirm 소리(meta "sfx_off"면 제외), 보상 팝업은 글자·색으로 소리를 고른다
 scripts/systems/
   story.gd (autoload)    코어 루프, 수요기관(DESTINATIONS), NPC 대화, 자판기·구내식당, 메뉴, 인트로, 강제 퇴근
@@ -136,6 +137,7 @@ scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_con
                          procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과),
                          event_window.gd(짧은 이벤트 장면 창: carry = 일 돕기, inspect = 검사관 결과)
                          phone_menu.gd(Esc 메뉴 = 스마트폰 홈 화면: 시계·체력 배터리·앱 6개(phone_apps.png)·오늘 할 일 알림)
+                         volume_window.gd(소리 설정 창: 배경음악·효과음 음량. 타이틀 [소리 설정]과 폰 [소리] 앱, Story.volume_settings())
                          title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물, 지붕 위 타이틀 간판
 scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn): 조달청 -> 수요기관 건물까지 제한 시간 안에 도착(경주 아님).
                                  자동 가속, ←→ 핸들, ↓ 감속(BRAKE_SPEED), Shift 드리프트(게이지 -> 부스터), Q 에너지 드링크 부스터. 장애물은 오가는 차·공사 울타리.

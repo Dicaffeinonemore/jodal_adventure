@@ -160,7 +160,7 @@ func _build() -> void:
 		cvb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(cvb)
 		cvb.add_child(_label(str(_data.get("note_title", "")), UiTheme.SIZE_SMALL, Color("23489a"), true))
-		var note := _label(str(_data["note"]), UiTheme.SIZE_SMALL, Color("2e2636"))
+		var note := _label(UiTheme.keep_words(str(_data["note"])), UiTheme.SIZE_SMALL, Color("2e2636"))
 		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		note.custom_minimum_size = Vector2(size.x - SCREEN_INSET.x * 2 - 22, 0)
 		cvb.add_child(note)

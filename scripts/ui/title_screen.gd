@@ -21,6 +21,7 @@ var _clouds: Array[Sprite2D] = []
 var _truck: Sprite2D
 var _banner: VBoxContainer
 var _sign: Label
+var _sound_btn: Button
 
 
 func _ready() -> void:
@@ -120,6 +121,8 @@ func _ready() -> void:
 	if GameState.has_save():
 		var cont := _make_button("이어서 출근하기")
 		cont.pressed.connect(_on_continue)
+	_sound_btn = _make_button("소리 설정")
+	_sound_btn.pressed.connect(_on_sound)
 	_buttons.hide()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -191,6 +194,11 @@ func _make_button(text: String) -> Button:
 func _on_new() -> void:
 	GameState.editing_look = false
 	SceneRouter.goto(SceneRouter.CHARACTER_CREATE)
+
+
+func _on_sound() -> void:
+	await Story.volume_settings()
+	_sound_btn.grab_focus()
 
 
 func _on_continue() -> void:

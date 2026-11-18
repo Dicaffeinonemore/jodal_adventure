@@ -23,6 +23,9 @@ extends Node2D
 ##     their own lane, so a barricade never has a car beside it when the player arrives,
 ##   - barricades are at least BARRICADE_GAP apart and cars never spawn on top of one.
 ## Story.cargo_damage_mult() scales damage (fragile cargo, truck upgrade).
+## 11/18: before the countdown, a guide popup (Story.drive_guide(): the first drive, and
+## every school run) says to use only the left/right keys. Easy destinations
+## (TrackData.easy_for, the school) get fewer cars and barricades and more time.
 
 ## Tests: drive by itself (keeps right, avoids obstacles, boosts) / pick the course.
 static var autopilot := false
@@ -74,7 +77,7 @@ const DROWSY_MAX := 6.5
 const SPRITES := "res://assets/sprites/placeholder/"
 const BUILDING_SCALE := 2.0
 
-enum State { COUNTDOWN, DRIVING, FINISHED }
+enum State { COUNTDOWN, DRIVING, FINISHED, GUIDE }
 
 var cargo := 100
 var stars := 0
@@ -92,6 +95,7 @@ var _rng := RandomNumberGenerator.new()
 var _damage_mult := 1.0
 var _cargo_f := 100.0
 var _late_warned := false
+var _easy: Dictionary = {}  # TrackData.easy_for (tests that force a course drive the normal trip)
 
 # player
 var _pos := Vector2.ZERO
@@ -133,6 +137,9 @@ func _ready() -> void:
 	_curve = TrackData.build_curve(track_index)
 	_length = _curve.get_baked_length()
 	time_limit = TrackData.time_limit(_length)
+	if force_track < 0:
+		_easy = TrackData.easy_for(Story.destination_id())
+	time_limit += float(_easy.get("extra_time", 0.0))
 	_damage_mult = Story.cargo_damage_mult()
 	_drowsy_timer = _rng.randf_range(DROWSY_MIN, DROWSY_MAX)
 
@@ -167,6 +174,15 @@ func _ready() -> void:
 	_ui.build(str(info["name"]))
 	_sync_sprites()
 	_cam.reset_smoothing()
+	var guide: Dictionary = {} if autopilot or force_track >= 0 else Story.drive_guide()  # not in tests
+	if not guide.is_empty():
+		_state = State.GUIDE
+		_ui.show_guide(guide, _start_countdown)
+
+
+func _start_countdown() -> void:
+	if _state == State.GUIDE:
+		_state = State.COUNTDOWN
 
 
 ## The 조달청 behind the start and the destination past the end of the road, upright,
@@ -383,7 +399,8 @@ func _finish(late: bool) -> void:
 
 # ---------------------------------------------------------------- traffic
 func _spawn_traffic() -> void:
-	for i in TRAFFIC:
+	var count: int = int(_easy.get("traffic", TRAFFIC))
+	for i in count:
 		var s := Sprite2D.new()
 		s.texture = load(SPRITES + ("car_npc.png" if i % 3 == 0 else "car_rival.png")) as Texture2D
 		if i % 3 != 0:
@@ -398,7 +415,7 @@ func _spawn_traffic() -> void:
 		add_child(warn)
 		var c := {"node": s, "warn": warn, "offset": 0.0, "lateral": 0.0, "lat": 0.0, "speed": 0.0, "cd": 0.0}
 		_traffic.append(c)
-		_place_car(c, 450.0 + (_length - 800.0) * (i + 0.5) / TRAFFIC, _rng.randf() < ONCOMING_SHARE)
+		_place_car(c, 450.0 + (_length - 800.0) * (i + 0.5) / count, _rng.randf() < ONCOMING_SHARE)
 
 
 ## Puts a car on the road near offset o: most drive our way (slower, right lane), some
@@ -543,7 +560,7 @@ func traffic_positions() -> Array[Vector2]:
 ## Barricades close one lane here and there (never both); stars and drinks are pickups.
 func _place_items() -> void:
 	var kinds: Array[String] = []
-	for i in BARRICADES + (2 if Story.is_urgent() else 0):
+	for i in int(_easy.get("barricades", BARRICADES)) + (2 if Story.is_urgent() else 0):
 		kinds.append("barricade")
 	for i in STARS:
 		kinds.append("star")
@@ -1159,8 +1176,8 @@ class RaceHud:
 			b.position = sp[2]
 			add_child(b)
 			var l := UiTheme.make_label(str(sp[1]), UiTheme.SIZE_SMALL, UiTheme.COLOR_TEXT, true)
-			l.position = Vector2(4, 20)
-			l.size = Vector2(36, 12)
+			l.position = Vector2(-6, 20)  # 12 px text (11/18) is wider than the button
+			l.size = Vector2(56, 12)
 			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 			l.add_theme_constant_override("outline_size", 4)
@@ -1186,6 +1203,64 @@ class RaceHud:
 
 	func set_center(text: String) -> void:
 		_center.text = text
+
+	## Popup before the countdown: title, lines (the first one big), key caps on
+	## keyboards, and a button. Space / Enter / Esc or the button close it.
+	func show_guide(data: Dictionary, on_close: Callable) -> void:
+		var layer_root := Control.new()
+		layer_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		UiTheme.apply(layer_root)
+		add_child(layer_root)
+		var dim := ColorRect.new()
+		dim.color = Color(0.04, 0.04, 0.08, 0.5)
+		dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+		layer_root.add_child(dim)
+		var center := CenterContainer.new()
+		center.set_anchors_preset(Control.PRESET_FULL_RECT)
+		layer_root.add_child(center)
+		var panel := PanelContainer.new()
+		var sb := UiTheme.panel_box(0.97)
+		sb.set_content_margin_all(12)
+		panel.add_theme_stylebox_override("panel", sb)
+		center.add_child(panel)
+		var vb := VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 6)
+		panel.add_child(vb)
+		var title := UiTheme.make_label(str(data.get("title", "")), UiTheme.SIZE, UiTheme.COLOR_BORDER, true)
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vb.add_child(title)
+		if not GameState.is_touch_device():
+			var caps := KeyCaps.new()
+			caps.custom_minimum_size = Vector2(150, 30)
+			caps.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			vb.add_child(caps)
+		var lines: Array = data.get("lines", [])
+		for i in lines.size():
+			var l := UiTheme.make_label(str(lines[i]), UiTheme.SIZE_LARGE if i == 0 else UiTheme.SIZE,
+					UiTheme.COLOR_WARN if i == 0 else UiTheme.COLOR_TEXT, i == 0)
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			vb.add_child(l)
+		var btn := Button.new()
+		btn.text = str(data.get("btn", ""))
+		btn.custom_minimum_size = Vector2(120, 26)
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		vb.add_child(btn)
+		btn.grab_focus()  # Space / Enter press it
+		var close := func() -> void:
+			if is_instance_valid(layer_root):
+				layer_root.queue_free()
+				on_close.call()
+		btn.pressed.connect(close)
+		_guide_close = close
+
+	var _guide_close := Callable()
+
+	func _unhandled_input(event: InputEvent) -> void:
+		if _guide_close.is_valid() and event.is_action_pressed("cancel"):
+			var c := _guide_close
+			_guide_close = Callable()
+			c.call()
+			get_viewport().set_input_as_handled()
 
 	func flash(text: String, color: Color) -> void:
 		Dialogue.toast(text, color)
@@ -1222,3 +1297,26 @@ class Minimap:
 			draw_circle(mp.call(p), 1.6, Color("d0d0d8"))
 		draw_circle(mp.call(game.player_pos()), 3.5, Color("ffe08a"))
 		draw_arc(mp.call(game.player_pos()), 3.5, 0, TAU, 10, Color.BLACK, 1.0)
+
+
+## Guide popup picture: the ← → keys lit, ↑ ↓ dimmed and crossed out.
+class KeyCaps:
+	extends Control
+
+	func _draw() -> void:
+		var cap := Vector2(28, 26)
+		var font := UiTheme.FONT_BOLD
+		var keys := [["←", 0.0, true], ["↑", 46.0, false], ["↓", 76.0, false], ["→", 122.0, true]]
+		for k: Array in keys:
+			var r := Rect2(Vector2(float(k[1]), (size.y - cap.y) / 2.0), cap)
+			var on := bool(k[2])
+			draw_rect(r, Color("f2c14e") if on else Color(1, 1, 1, 0.1))
+			draw_rect(r, Color("261e2c") if on else Color(1, 1, 1, 0.3), false, 1.0)
+			var glyph := str(k[0])
+			var w := font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SIZE).x
+			draw_string(font, Vector2(r.position.x + (cap.x - w) / 2.0, r.position.y + 17), glyph,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SIZE, Color("261e2c") if on else Color(1, 1, 1, 0.8))
+			if not on:  # a thin cross so the arrow stays readable
+				var x := Color(UiTheme.COLOR_BAD, 0.85)
+				draw_line(r.position + Vector2(2, 2), r.end - Vector2(2, 2), x, 1.0)
+				draw_line(Vector2(r.end.x - 2, r.position.y + 2), Vector2(r.position.x + 2, r.end.y - 2), x, 1.0)

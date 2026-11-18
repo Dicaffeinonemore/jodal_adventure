@@ -3,18 +3,21 @@ extends Node
 ##
 ## Web builds have no system fonts, so Hangul only renders if every Control uses
 ## the bundled Galmuri pixel font (SIL OFL 1.1, assets/fonts/OFL-Galmuri.md).
-## Galmuri11 is drawn for 12 px; keep font sizes at multiples of 12 (12, 24)
-## and Galmuri9 at 10 px so glyphs stay crisp.
+## Galmuri11 is drawn for 12 px; keep font sizes at multiples of 12 (12, 24) so
+## glyphs stay crisp. 11/18 readability patch: small text (SIZE_SMALL) used to be
+## Galmuri9 at 10 px, hard to read on phones; it is now Galmuri11 at 12 px too
+## (bold small text was Galmuri11-Bold at 10 px, off its pixel grid = blurry).
 
 const FONT_REGULAR: FontFile = preload("res://assets/fonts/Galmuri11.ttf")
 const FONT_BOLD: FontFile = preload("res://assets/fonts/Galmuri11-Bold.ttf")
-const FONT_SMALL: FontFile = preload("res://assets/fonts/Galmuri9.ttf")
+const FONT_SMALL: FontFile = preload("res://assets/fonts/Galmuri11.ttf")
 const SIZE := 12
-const SIZE_SMALL := 10
+const SIZE_SMALL := 12
 const SIZE_LARGE := 24
+const WORD_JOINER := "⁠"  # the invisible U+2060 character, see keep_words()
 
 const COLOR_TEXT := Color("f4f1e8")
-const COLOR_DIM := Color("b9b4a8")
+const COLOR_DIM := Color("d2cdc0")
 const COLOR_PANEL := Color(0.1, 0.11, 0.17, 0.92)
 const COLOR_BORDER := Color("e8d9a8")
 const COLOR_ACCENT := Color("6fb6ff")
@@ -49,6 +52,22 @@ func apply(control: Control) -> void:
 ## TODO(P1): read DisplayServer.get_display_safe_area() for exact insets.
 func edge_margin() -> float:
 	return 20.0 if GameState.is_touch_device() else 8.0
+
+
+## Text for autowrapped labels: puts an invisible WORD JOINER (U+2060) between Hangul
+## syllables so lines break only at spaces. Godot's line breaker treats every Hangul
+## syllable as a break point and splits words mid-word. Galmuri draws nothing for it.
+func keep_words(text: String) -> String:
+	var out := PackedStringArray()
+	var prev_hangul := false
+	for i in text.length():
+		var c := text.unicode_at(i)
+		var hangul := c >= 0xAC00 and c <= 0xD7A3
+		if hangul and prev_hangul:
+			out.append(WORD_JOINER)
+		out.append(text[i])
+		prev_hangul = hangul
+	return "".join(out)
 
 
 func panel_box(alpha: float = 0.92) -> StyleBoxFlat:

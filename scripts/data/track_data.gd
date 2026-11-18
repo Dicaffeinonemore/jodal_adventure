@@ -87,6 +87,10 @@ const THEMES := {
 			"colors": [Color("f0f4f8"), Color("e8eef8"), Color("f8f0e4")]},
 }
 
+## Easier trips (11/18 playtest: the school run felt hard for a first delivery):
+## fewer cars and barricades and more time. RaceGame reads easy_for().
+const EASY := {"school": {"traffic": 4, "barricades": 3, "extra_time": 8.0}}
+
 ## Seconds to reach the building: plenty of slack over a clean run at cruising speed
 ## (11/17: raised from 1/175 + 4 s, a clean run takes about 20-25 s).
 const SECONDS_PER_PX := 1.0 / 150.0
@@ -99,6 +103,11 @@ static func count() -> int:
 
 static func time_limit(length: float) -> float:
 	return ceilf(length * SECONDS_PER_PX + TIME_SLACK)
+
+
+## {} for a normal trip, else EASY's settings for the destination.
+static func easy_for(place: String) -> Dictionary:
+	return EASY.get(place, {})
 
 
 static func for_destination(place: String, rng: RandomNumberGenerator) -> int:

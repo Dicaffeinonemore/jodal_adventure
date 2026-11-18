@@ -143,7 +143,7 @@ func _build() -> void:
 	var foot_row := HBoxContainer.new()
 	foot_row.add_theme_constant_override("separation", 6)
 	body_vb.add_child(foot_row)
-	var tip := _label(str(_data.get("footer", "")), UiTheme.SIZE_SMALL, TEXT_DIM)
+	var tip := _label(UiTheme.keep_words(str(_data.get("footer", ""))), UiTheme.SIZE_SMALL, TEXT_DIM)
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foot_row.add_child(tip)
@@ -173,7 +173,7 @@ func _info_card() -> Control:
 		var cell := VBoxContainer.new()
 		cell.add_theme_constant_override("separation", 0)
 		cell.add_child(_label(str(pair[0]), UiTheme.SIZE_SMALL, TEXT_DIM))
-		var v := _label(str(pair[1]), UiTheme.SIZE, TEXT, true)
+		var v := _label(UiTheme.keep_words(str(pair[1])), UiTheme.SIZE, TEXT, true)
 		v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		cell.add_child(v)
 		vb.add_child(cell)
@@ -187,7 +187,7 @@ func _info_card() -> Control:
 	var gap := Control.new()
 	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vb.add_child(gap)
-	var f := _label(str(_data.get("formula", "")), UiTheme.SIZE_SMALL, TEXT_DIM)
+	var f := _label(UiTheme.keep_words(str(_data.get("formula", ""))), UiTheme.SIZE_SMALL, TEXT_DIM)
 	f.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(f)
 	return card
@@ -212,7 +212,7 @@ func _vendor_row(v: Dictionary, index: int) -> PanelContainer:
 	if bool(v.get("sale", false)):
 		name_row.add_child(_chip(str(v.get("sale_label", "")), SALE))
 	left.add_child(name_row)
-	var desc := _label(str(v.get("desc", "")), UiTheme.SIZE_SMALL, TEXT_DIM)
+	var desc := _label(UiTheme.keep_words(str(v.get("desc", ""))), UiTheme.SIZE_SMALL, TEXT_DIM)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	left.add_child(desc)
 	var note := str(v.get("note", ""))
@@ -290,7 +290,7 @@ func _ask_confirm() -> void:
 	if _rows.is_empty():
 		return
 	var texts: Array = _data.get("confirm", [])
-	_confirm_text.text = str(texts[_selected]) if _selected < texts.size() else ""
+	_confirm_text.text = UiTheme.keep_words(str(texts[_selected])) if _selected < texts.size() else ""
 	_confirm.show()
 	Sound.play("confirm")
 
