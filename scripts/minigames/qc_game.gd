@@ -10,6 +10,7 @@ extends CanvasLayer
 ##   zone ("검사 구역"), reject ("불합격!"), hint, found ("찾은 불량 %d/%d"), wrong ("오판 %d"),
 ##   left ("남은 물품 %d"), hit, miss, false_alarm (flash texts), go ("시작!")
 ## Controls: interact (Space / Enter / touch A) or a tap rejects the item in the zone.
+## Before it, Story shows the paged tutorial (TutorialPages, pictures: paint_tutorial()).
 
 signal _done(result: Dictionary)
 
@@ -328,26 +329,111 @@ class Belt:
 			var alpha := 1.0 - fall / 0.6
 			draw_texture_rect(_tex, Rect2(pos, s), false, Color(1, 1, 1, alpha))
 			if int(it["defect"]) >= 0:
-				_draw_defect(int(it["defect"]), pos + s / 2.0 + Vector2(float(it["dx"]), float(it["dy"])) * ITEM_SCALE, alpha)
+				QcGame.draw_defect(self, int(it["defect"]), pos + s / 2.0 + Vector2(float(it["dx"]), float(it["dy"])) * ITEM_SCALE, alpha, ITEM_SCALE)
 			if st == "rejected":
 				draw_line(pos + Vector2(10, 10), pos + s - Vector2(10, 10), Color(0.8, 0.1, 0.1, alpha), 4.0)
 				draw_line(pos + Vector2(s.x - 10, 10), pos + Vector2(10, s.y - 10), Color(0.8, 0.1, 0.1, alpha), 4.0)
 
-	func _draw_defect(kind: int, c: Vector2, alpha: float) -> void:
-		var k := ITEM_SCALE
-		match kind:
-			0:  # crack
-				var pts := PackedVector2Array([c + Vector2(-4, -3) * k, c + Vector2(-1, -1) * k, c + Vector2(-2, 1) * k,
-						c + Vector2(1, 2) * k, c + Vector2(0, 4) * k])
-				draw_polyline(pts, Color(0.12, 0.1, 0.14, alpha), 3.0)
-			1:  # stain
-				draw_circle(c, 2.6 * k, Color(0.48, 0.32, 0.16, alpha * 0.85))
-				draw_circle(c + Vector2(2.5, 1.5) * k, 1.4 * k, Color(0.48, 0.32, 0.16, alpha * 0.85))
-			2:  # missing piece: a chunk of belt shows through
-				var r := Rect2(c - Vector2(2.5, 2.5) * k, Vector2(5, 5) * k)
-				draw_rect(r, Color(0.87, 0.9, 0.93, alpha))
-				draw_rect(r, Color(0.15, 0.12, 0.18, alpha), false, 2.0)
-			_:  # scratches
-				for i in 2:
-					var o := Vector2(i * 2.0, i * 1.5) * k
-					draw_line(c - Vector2(4, 2) * k + o, c + Vector2(3, -4) * k + o, Color(0.22, 0.2, 0.26, alpha * 0.8), 2.0)
+
+## A defect on a product picture at c (k = picture scale). 0 crack, 1 stain, 2 missing
+## piece, 3 scratches. Also used by the tutorial pictures.
+static func draw_defect(ci: CanvasItem, kind: int, c: Vector2, alpha: float, k: float) -> void:
+	match kind:
+		0:  # crack
+			var pts := PackedVector2Array([c + Vector2(-4, -3) * k, c + Vector2(-1, -1) * k, c + Vector2(-2, 1) * k,
+					c + Vector2(1, 2) * k, c + Vector2(0, 4) * k])
+			ci.draw_polyline(pts, Color(0.12, 0.1, 0.14, alpha), 3.0)
+		1:  # stain
+			ci.draw_circle(c, 2.6 * k, Color(0.48, 0.32, 0.16, alpha * 0.85))
+			ci.draw_circle(c + Vector2(2.5, 1.5) * k, 1.4 * k, Color(0.48, 0.32, 0.16, alpha * 0.85))
+		2:  # missing piece: a chunk of belt shows through
+			var r := Rect2(c - Vector2(2.5, 2.5) * k, Vector2(5, 5) * k)
+			ci.draw_rect(r, Color(0.87, 0.9, 0.93, alpha))
+			ci.draw_rect(r, Color(0.15, 0.12, 0.18, alpha), false, 2.0)
+		_:  # scratches
+			for i in 2:
+				var o := Vector2(i * 2.0, i * 1.5) * k
+				ci.draw_line(c - Vector2(4, 2) * k + o, c + Vector2(3, -4) * k + o, Color(0.22, 0.2, 0.26, alpha * 0.8), 2.0)
+
+
+# ================================================================ tutorial pictures
+## TutorialPages painter for Story.TUTORIALS["qc"]: product = the task's product picture,
+## kind = TaskData "kind" (where defects go on it).
+static func paint_tutorial(ci: Control, pic: String, labels: Array, t: float, product: String, kind: String) -> void:
+	var sz := ci.size
+	var tex := TutorialPages.tex(product)
+	var lab := func(i: int) -> String: return str(labels[i]) if i < labels.size() else ""
+	var area: Array = DEFECT_AREA.get(kind, DEFECT_AREA["device"])
+	var spot: Vector2 = area[0]
+	ci.draw_rect(Rect2(Vector2.ZERO, sz), Color("dfe5ee"))
+	match pic:
+		"belt", "reject":
+			var k := 2.0
+			var belt := Rect2(0, sz.y - 34, sz.x, 24)
+			ci.draw_rect(belt, Color("464a58"))
+			var shift := fmod(t * 60.0, 20.0) if pic == "belt" else 0.0
+			var x := -20.0 + shift
+			while x < sz.x:
+				ci.draw_rect(Rect2(x, belt.position.y + 2, 3, belt.size.y - 4), Color("5c6072"))
+				x += 20.0
+			var zx := sz.x / 2.0 if pic == "belt" else sz.x * 0.36
+			var zone := Rect2(zx - 34.0, 18.0, 68.0, sz.y - 22.0)
+			ci.draw_rect(zone, Color(1.0, 0.85, 0.3, 0.25))
+			ci.draw_rect(zone, Color("e0a020"), false, 2.0)
+			TutorialPages.text(ci, Vector2(zx, 14.0), lab.call(0) if pic == "belt" else "", Color("f2c14e"))
+			if tex == null:
+				return
+			var s := tex.get_size() * k
+			if pic == "belt":
+				for i in 5:
+					var ix := fmod(t * 60.0 + i * 80.0, 400.0) - 40.0
+					var pos := Vector2(ix - s.x / 2.0, belt.position.y - s.y + 10.0)
+					ci.draw_texture_rect(tex, Rect2(pos, s), false)
+					if i == 2:
+						QcGame.draw_defect(ci, 1, pos + s / 2.0 + spot * k, 1.0, k)
+			else:
+				var pos := Vector2(zx - s.x / 2.0, belt.position.y - s.y + 10.0)
+				ci.draw_texture_rect(tex, Rect2(pos, s), false)
+				QcGame.draw_defect(ci, 0, pos + s / 2.0 + spot * k, 1.0, k)
+				if fmod(t, 1.6) > 0.8:  # the reject mark blinks on
+					ci.draw_line(pos + Vector2(8, 8), pos + s - Vector2(8, 8), Color(0.8, 0.1, 0.1), 4.0)
+					ci.draw_line(pos + Vector2(s.x - 8, 8), pos + Vector2(8, s.y - 8), Color(0.8, 0.1, 0.1), 4.0)
+				var btn := Rect2(sz.x * 0.62, 22.0, 100.0, 28.0)
+				var pressed := fmod(t, 1.6) > 0.8 and fmod(t, 1.6) < 1.0
+				ci.draw_rect(btn, BAD.darkened(0.2) if pressed else BAD)
+				ci.draw_rect(btn, INK, false, 2.0)
+				TutorialPages.text(ci, btn.get_center() + Vector2(0, 5), lab.call(0), Color.WHITE, UiTheme.SIZE)
+				var key := Rect2(btn.get_center().x - 30.0, 58.0, 60.0, 22.0)
+				ci.draw_rect(key, Color("f2c14e") if pressed else Color("e8d9a8"))
+				ci.draw_rect(key, INK, false, 1.5)
+				TutorialPages.text(ci, Vector2(key.get_center().x, key.position.y + 16.0), lab.call(1), INK, UiTheme.SIZE_SMALL, false)
+		"defects":
+			if tex == null:
+				return
+			var k := 2.5
+			var s := tex.get_size() * k
+			var kinds := [3, 1, 0, 2]  # scratch, stain, crack, missing: the caption order
+			var step := sz.x / kinds.size()
+			for i in kinds.size():
+				var c := Vector2(step * (i + 0.5), sz.y / 2.0 - 10.0)
+				var pos := c - s / 2.0
+				ci.draw_texture_rect(tex, Rect2(pos, s), false)
+				QcGame.draw_defect(ci, int(kinds[i]), c + spot * k, 1.0, k)
+				var ring := 0.5 + 0.5 * sin(t * 5.0 + i)
+				ci.draw_arc(c + spot * k, 4.0 * k + ring * 2.0, 0, TAU, 20, Color(0.9, 0.2, 0.2, 0.8), 2.0)
+				TutorialPages.text(ci, Vector2(c.x, sz.y - 10.0), lab.call(i), BAD, UiTheme.SIZE_SMALL, false)
+		"result":
+			var grow := clampf(fmod(t, 3.0) / 1.5, 0.0, 1.0)
+			var x0 := 92.0
+			var full := sz.x - x0 - 24.0
+			var need := 0.7
+			for i in 2:
+				var y := 26.0 + i * 36.0
+				TutorialPages.text(ci, Vector2(48.0, y + 12.0), lab.call(i), TEXT if i == 0 else GOOD, UiTheme.SIZE, false)
+				var v := 0.6 if i == 0 else lerpf(0.6, 0.85, grow)
+				ci.draw_rect(Rect2(x0, y, full, 16.0), Color(0, 0, 0, 0.12))
+				ci.draw_rect(Rect2(x0, y, full * v, 16.0), Color("a0a4b4") if i == 0 else GOOD)
+				ci.draw_rect(Rect2(x0, y, full, 16.0), INK, false, 1.0)
+			var nx := x0 + full * need
+			ci.draw_line(Vector2(nx, 18.0), Vector2(nx, 86.0), BAD, 2.0)
+			TutorialPages.text(ci, Vector2(nx, sz.y - 8.0), lab.call(2), BAD, UiTheme.SIZE_SMALL, false)

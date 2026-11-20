@@ -138,6 +138,9 @@ scripts/actors/          player.gd(4방향 이동·달리기·상호작용),
 scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_controls.gd,
                          procurement_pc.gd(나라장터 모니터 창: 업체 선택), meal_window.gd(구내식당 식사 장면·결과),
                          event_window.gd(짧은 이벤트 장면 창: carry = 일 돕기, inspect = 검사관 결과)
+                         tutorial_pages.gd(11/20 미니게임 시작 전 페이지 튜토리얼: 제목·움직이는 그림·설명 몇 줄, ◀ 이전/다음 ▶/시작!·건너뛰기.
+                         문구는 Story.TUTORIALS, Story.tutorial(id)가 만든다(처음엔 1쪽부터, 그 뒤엔 repeat_page 요약부터).
+                         그림은 미니게임의 paint_tutorial(RaceGame·QcGame). 그림 안 텍스처는 TutorialPages.tex()로 불러 살아 있게 둔다)
                          phone_menu.gd(Esc 메뉴 = 스마트폰 홈 화면: 시계·체력 배터리·앱 6개(phone_apps.png)·오늘 할 일 알림)
                          volume_window.gd(소리 설정 창: 배경음악·효과음 음량. 타이틀 [소리 설정]과 폰 [소리] 앱, Story.volume_settings())
                          title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물(간판·깃발에 픽셀 로고), 지붕 위 타이틀 간판
@@ -151,8 +154,10 @@ scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn, 11/2
                                  공정 규칙: 새 차 줄은 항상 2차선 이상 비움, 울타리 옆에는 차를 안 만들고 차가 울타리를 피해 감,
                                  장애물은 화면에 들어오기 전 위쪽 가장자리에 "!", 앞차 차선 변경은 플레이어와 멀 때만 깜빡이 후.
                                  결과: 화물 상태 -> 납품 품질, 별 = 주운 별 + 남은 연료·점수 보너스. 문구는 Story.DRIVE_TEXT.
+                                 출발 전 튜토리얼 7쪽(TutorialPages, Story.TUTORIALS["drive"]).
                                  출발·도착 건물 그림은 assets bld_<id>.png(tools/gen_placeholders.py가 타이틀 마을에서 잘라 냄)
 scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
+                                 시작 전 튜토리얼 4쪽(Story._use_qc_station -> TutorialPages, Story.TUTORIALS["qc"])
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            레벨업 폰트 Regular·Bold (OFL)
 assets/sprites/placeholder/  도트 (tools/gen_placeholders.py로 생성). 나르미·달이는 공식 마스코트 그림(tools/ref/mascots.png)을 보고 그린 픽셀 격자(NARUMI·DARI),

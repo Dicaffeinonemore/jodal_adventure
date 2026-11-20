@@ -308,6 +308,7 @@ func _one_task(i: int) -> void:
 	await _walk_and_interact(Vector2i(8, 4), "up")
 	var qc_shot := i == 0
 	var result_shot := false
+	var tut_shot := false
 	for k in 3000:
 		if bool((gs.get("task") as Dictionary).get("qc_done", false)) and not _a("Dialogue").get("overlay_open"):
 			break
@@ -318,6 +319,11 @@ func _one_task(i: int) -> void:
 				dlg2.call("_on_choice", 0)
 			else:
 				_press("interact")
+		elif dlg2.get("overlay_open") and _tut_running():  # tutorial pages before the belt
+			if i == 0 and not tut_shot:
+				tut_shot = true
+				await _shot("04b_qc_tutorial", 30)
+			_press("interact")
 		elif dlg2.get("overlay_open") and not _qc_running():
 			if i == 0 and not result_shot:
 				result_shot = true
@@ -476,6 +482,14 @@ func _forced_leave(i: int) -> void:
 	await _drain_dialogue()
 	await _wait_router()
 	print("  forced leave during task %d (fatigue limit)" % (i + 1))
+
+
+func _tut_running() -> bool:
+	for n: Node in root.get_children():
+		var sc: Script = n.get_script()
+		if sc != null and sc.resource_path == "res://scripts/ui/tutorial_pages.gd":
+			return true
+	return false
 
 
 func _qc_running() -> bool:

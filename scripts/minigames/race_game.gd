@@ -22,8 +22,9 @@ extends Node2D
 ## Fairness: a new row of traffic always leaves two lanes open, cars never spawn beside a
 ## barricade and steer around them, hazards get a blinking "!" at the top edge before
 ## they scroll in, and cars change lanes only well ahead of the player after blinking.
-## Player-visible text: Story.DRIVE_TEXT. Guide popup before the countdown:
-## Story.drive_guide(). Easy destinations: TrackData.easy_for().
+## Player-visible text: Story.DRIVE_TEXT. Before the countdown: the paged tutorial
+## (TutorialPages + Story.tutorial("drive"), pictures: paint_tutorial()).
+## Easy destinations: TrackData.easy_for().
 
 ## Tests: drive by itself / pick the course.
 static var autopilot := false
@@ -194,13 +195,17 @@ func _ready() -> void:
 	add_child(_ui)
 	_ui.build(str(info["name"]))
 	_sync()
-	var guide: Dictionary = {} if autopilot or force_track >= 0 else Story.drive_guide()  # not in tests
-	if not guide.is_empty():
+	if not autopilot and force_track < 0:  # not in tests
 		_state = State.GUIDE
-		_ui.show_guide(guide, _start_countdown)
+		_show_tutorial()
 
 
-func _start_countdown() -> void:
+func _show_tutorial() -> void:
+	var tp := TutorialPages.new()
+	add_child(tp)
+	await tp.run(Story.tutorial("drive"), func(ci: Control, pic: String, labels: Array, t: float) -> void:
+		RaceGame.paint_tutorial(ci, pic, labels, t))
+	tp.queue_free()
 	if _state == State.GUIDE:
 		_state = State.COUNTDOWN
 
@@ -1598,64 +1603,6 @@ class RaceHud:
 	func set_center(text: String) -> void:
 		_center.text = text
 
-	## Popup before the countdown: title, key caps on keyboards, lines (the first one
-	## big), and a button. Space / Enter / Esc or the button close it.
-	func show_guide(data: Dictionary, on_close: Callable) -> void:
-		var layer_root := Control.new()
-		layer_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-		UiTheme.apply(layer_root)
-		add_child(layer_root)
-		var dim := ColorRect.new()
-		dim.color = Color(0.04, 0.04, 0.08, 0.5)
-		dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-		layer_root.add_child(dim)
-		var center := CenterContainer.new()
-		center.set_anchors_preset(Control.PRESET_FULL_RECT)
-		layer_root.add_child(center)
-		var panel := PanelContainer.new()
-		var sb := UiTheme.panel_box(0.97)
-		sb.set_content_margin_all(12)
-		panel.add_theme_stylebox_override("panel", sb)
-		center.add_child(panel)
-		var vb := VBoxContainer.new()
-		vb.add_theme_constant_override("separation", 6)
-		panel.add_child(vb)
-		var title := UiTheme.make_label(str(data.get("title", "")), UiTheme.SIZE, UiTheme.COLOR_BORDER, true)
-		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		vb.add_child(title)
-		if not GameState.is_touch_device():
-			var caps := KeyCaps.new()
-			caps.custom_minimum_size = Vector2(196, 46)
-			caps.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-			vb.add_child(caps)
-		var lines: Array = data.get("lines", [])
-		for i in lines.size():
-			var l := UiTheme.make_label(str(lines[i]), UiTheme.SIZE_LARGE if i == 0 else UiTheme.SIZE,
-					UiTheme.COLOR_WARN if i == 0 else UiTheme.COLOR_TEXT, i == 0)
-			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			vb.add_child(l)
-		var btn := Button.new()
-		btn.text = str(data.get("btn", ""))
-		btn.custom_minimum_size = Vector2(120, 26)
-		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		vb.add_child(btn)
-		btn.grab_focus()  # Space / Enter press it
-		var close := func() -> void:
-			if is_instance_valid(layer_root):
-				layer_root.queue_free()
-				on_close.call()
-		btn.pressed.connect(close)
-		_guide_close = close
-
-	var _guide_close := Callable()
-
-	func _unhandled_input(event: InputEvent) -> void:
-		if _guide_close.is_valid() and event.is_action_pressed("cancel"):
-			var c := _guide_close
-			_guide_close = Callable()
-			c.call()
-			get_viewport().set_input_as_handled()
-
 	func flash(text: String, color: Color) -> void:
 		Dialogue.toast(text, color)
 
@@ -1683,26 +1630,180 @@ class TripBar:
 		draw_arc(p, 4.0, 0, TAU, 10, Color.BLACK, 1.0)
 
 
-## Guide popup picture: ← → (lanes), ↑ (jump), Q (turbo), with captions.
-class KeyCaps:
-	extends Control
+# ================================================================ tutorial pictures
+## TutorialPages painter for Story.TUTORIALS["drive"]: draws `pic` into ci (PIC_SIZE),
+## animated by t; labels are the captions from Story.
+static func paint_tutorial(ci: Control, pic: String, labels: Array, t: float) -> void:
+	var sz := ci.size
+	var lab := func(i: int) -> String: return str(labels[i]) if i < labels.size() else ""
+	match pic:
+		"goal":
+			ci.draw_rect(Rect2(Vector2.ZERO, sz), Color("7cc35a"))
+			var from := TutorialPages.tex(SPRITES + "bld_pps.png")
+			var to: Texture2D = null
+			if Story.destination_id() != "":
+				to = TutorialPages.tex(SPRITES + "bld_%s.png" % Story.destination_id())
+			if to == null:
+				to = TutorialPages.tex(SPRITES + "bld_school.png")
+			ci.draw_rect(Rect2(0, sz.y / 2.0 + 8.0, sz.x, 28.0), Color("4f5160"))
+			var x := 80.0
+			while x < sz.x - 80.0:
+				ci.draw_rect(Rect2(x, sz.y / 2.0 + 21.0, 10, 2), Color(1, 1, 1, 0.7))
+				x += 20.0
+			for k in 2:
+				var tex: Texture2D = from if k == 0 else to
+				var cx := 44.0 if k == 0 else sz.x - 44.0
+				if tex != null:
+					var h := 60.0
+					var w := tex.get_width() * h / tex.get_height()
+					ci.draw_texture_rect(tex, Rect2(cx - w / 2.0, 6.0, w, h), false)
+				TutorialPages.text(ci, Vector2(cx, sz.y - 6.0), lab.call(k), UiTheme.COLOR_TEXT)
+			var p := fmod(t * 0.35, 1.0)
+			_tut_car(ci, "car_player.png", Vector2(lerpf(90.0, sz.x - 90.0, p), sz.y / 2.0 + 22.0), PI / 2.0)
+		"lanes":
+			var road := _tut_road(ci, sz, 0.0)
+			var lw := road.size.x / LANES
+			var lane := 2 if fmod(t, 2.4) < 1.2 else 1
+			_tut_car(ci, "car_rival.png", Vector2(road.position.x + 2.5 * lw, 26.0), 0.0, Color("ef6b5b"))
+			_tut_car(ci, "car_player.png", Vector2(road.position.x + (lane + 0.5) * lw, sz.y - 26.0), 0.0)
+			var on := fmod(t, 0.6) < 0.4
+			for side: float in [-1.0, 1.0]:
+				var ax := sz.x / 2.0 + side * (road.size.x / 2.0 + 34.0)
+				var col := UiTheme.COLOR_WARN if on else Color(1, 1, 1, 0.4)
+				ci.draw_colored_polygon(PackedVector2Array([Vector2(ax + side * 14.0, sz.y / 2.0),
+						Vector2(ax - side * 4.0, sz.y / 2.0 - 12.0), Vector2(ax - side * 4.0, sz.y / 2.0 + 12.0)]), col)
+		"combo":
+			var road := _tut_road(ci, sz, t * 120.0)
+			var lw := road.size.x / LANES
+			var cycle := fmod(t, 2.0) / 2.0
+			for k in 3:
+				var y := fmod(cycle * 150.0 + k * 50.0, 150.0) - 20.0
+				_tut_car(ci, "car_rival.png", Vector2(road.position.x + ((k * 2) % LANES + 0.5) * lw, y), 0.0,
+						TRAFFIC_COLORS[k % TRAFFIC_COLORS.size()])
+			_tut_car(ci, "car_player.png", Vector2(road.position.x + 3.5 * lw, sz.y - 30.0), 0.0)
+			TutorialPages.text(ci, Vector2(road.position.x + 3.5 * lw, sz.y - 50.0 - cycle * 10.0), lab.call(0), UiTheme.COLOR_WARN)
+			TutorialPages.text(ci, Vector2(52.0, sz.y / 2.0 + 4.0), lab.call(1), UiTheme.COLOR_WARN)
+			TutorialPages.text(ci, Vector2(sz.x - 52.0, sz.y / 2.0 - 10.0), lab.call(2), UiTheme.COLOR_ACCENT)
+			for k in 3:
+				var wy := fmod(t * 90.0 + k * 14.0, 40.0) + sz.y / 2.0
+				ci.draw_line(Vector2(sz.x - 62.0 + k * 10.0, wy), Vector2(sz.x - 62.0 + k * 10.0, wy + 8.0), Color(1, 1, 1, 0.7), 1.0)
+		"jump":
+			var area := Vector2(sz.x * 0.55, sz.y)
+			var road := _tut_road(ci, area, 0.0)
+			ci.draw_rect(Rect2(area.x, 0.0, sz.x - area.x, sz.y), Color(0.13, 0.14, 0.21))
+			var lw := road.size.x / LANES
+			var bar := TutorialPages.tex(SPRITES + "barricade.png")
+			var bx := road.position.x + 2.5 * lw
+			ci.draw_texture_rect(bar, Rect2(bx - 12.0, 46.0, 24.0, 10.0), false)
+			var ph := fmod(t, 1.6) / 1.6
+			var y := lerpf(sz.y - 20.0, 4.0, ph)
+			var h := sin(clampf((ph - 0.25) / 0.5, 0.0, 1.0) * PI)
+			ci.draw_rect(Rect2(bx - 8.0 + h * 5.0, y - 12.0, 16.0, 28.0), Color(0, 0, 0, 0.3))
+			_tut_car(ci, "car_player.png", Vector2(bx, y - h * 10.0), 0.0, Color.WHITE, 1.0 + 0.35 * h)
+			if h > 0.3:
+				TutorialPages.text(ci, Vector2(bx + 36.0, y - 6.0), lab.call(0), UiTheme.COLOR_WARN)
+			var gx := sz.x * 0.62
+			TutorialPages.text(ci, Vector2(gx + 50.0, 22.0), lab.call(1), UiTheme.COLOR_DIM)
+			var fill := clampf(fmod(t, 3.0) / 2.0, 0.0, 1.0)
+			ci.draw_rect(Rect2(gx, 30.0, 100.0, 8.0), Color(0, 0, 0, 0.5))
+			ci.draw_rect(Rect2(gx, 30.0, 100.0 * fill, 8.0), Color("ff9a3c"))
+			if fill >= 1.0:
+				var c := Vector2(gx + 50.0, 80.0)
+				var l := 12.0 + sin(t * 40.0) * 4.0
+				ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-5, 14), c + Vector2(5, 14), c + Vector2(0, 14 + l)]), Color("ff9a3c"))
+				ci.draw_arc(c, 20.0, 0, TAU, 20, Color(1.0, 0.85, 0.3, 0.7), 2.0)
+				_tut_car(ci, "car_player.png", c, 0.0)
+				TutorialPages.text(ci, Vector2(gx + 50.0, 56.0), lab.call(2), UiTheme.COLOR_WARN)
+		"fuel":
+			var f := 1.0 - fmod(t, 3.0) / 3.0 * 0.8
+			TutorialPages.text(ci, Vector2(60.0, 30.0), lab.call(0), UiTheme.COLOR_TEXT)
+			ci.draw_rect(Rect2(14.0, 40.0, 92.0, 10.0), Color(0, 0, 0, 0.5))
+			ci.draw_rect(Rect2(14.0, 40.0, 92.0 * f, 10.0), UiTheme.COLOR_BAD if f < 0.3 else UiTheme.COLOR_GOOD)
+			_tut_car(ci, "car_player.png", Vector2(60.0, 80.0), 0.0)
+			var gx := 196.0
+			ci.draw_rect(Rect2(gx - 66.0, 40.0, 132.0, 14.0), Color("261e2c"))
+			ci.draw_rect(Rect2(gx - 65.0, 41.0, 130.0, 12.0), Color("23489a"))
+			var x := gx - 62.0
+			while x < gx + 58.0:
+				ci.draw_rect(Rect2(x, 41.0, 4.0, 2.0), Color("f2c14e"))
+				ci.draw_rect(Rect2(x + 4.0, 51.0, 4.0, 2.0), Color("f2c14e"))
+				x += 8.0
+			TutorialPages.text(ci, Vector2(gx, 30.0), lab.call(1), UiTheme.COLOR_GOOD)
+			_tut_fuel_can(ci, Vector2(gx - 20.0, 84.0), 1.6)
+			TutorialPages.text(ci, Vector2(gx + 40.0, 90.0), lab.call(2), UiTheme.COLOR_GOOD)
+		"items":
+			var icons := ["star", "fuel", "drink", "toolbox", "barricade", "oil", "warn"]
+			var tex := {"star": "pickup_star.png", "drink": "pickup_drink.png", "toolbox": "pickup_repair.png", "barricade": "barricade.png"}
+			var step := sz.x / icons.size()
+			for i in icons.size():
+				var c := Vector2(step * (i + 0.5), sz.y / 2.0 - 8.0 + (sin(t * 4.0 + i) * 2.0 if i < 4 else 0.0))
+				var kind: String = icons[i]
+				if tex.has(kind):
+					var tx2 := TutorialPages.tex(SPRITES + str(tex[kind]))
+					var s := tx2.get_size() * (1.0 if kind == "barricade" else 2.0)
+					ci.draw_texture_rect(tx2, Rect2(c - s / 2.0, s), false)
+				elif kind == "fuel":
+					_tut_fuel_can(ci, c, 1.6)
+				elif kind == "oil":
+					ci.draw_circle(c + Vector2(-5, 1), 11, Color(0.05, 0.05, 0.08))
+					ci.draw_circle(c + Vector2(6, -2), 9, Color(0.05, 0.05, 0.08))
+					ci.draw_arc(c + Vector2(-5, -1), 5, PI, PI * 1.6, 6, Color(0.6, 0.5, 0.9, 0.8), 1.5)
+				elif fmod(t, 0.5) < 0.33:
+					ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -12), c + Vector2(12, 9), c + Vector2(-12, 9)]), UiTheme.COLOR_WARN)
+					ci.draw_rect(Rect2(c + Vector2(-1.5, -5), Vector2(3, 8)), Color("261e2c"))
+					ci.draw_rect(Rect2(c + Vector2(-1.5, 5), Vector2(3, 3)), Color("261e2c"))
+				TutorialPages.text(ci, Vector2(c.x, sz.y - 14.0), lab.call(i), UiTheme.COLOR_TEXT)
+		"keys":
+			var touch := GameState.is_touch_device()
+			var keys := ["◀", "▶", "점프", "터보", "감속"] if touch else ["←", "→", "↑", "Q", "↓"]
+			var step := sz.x / keys.size()
+			var lit_i := int(fmod(t, keys.size() * 0.5) / 0.5)
+			for i in keys.size():
+				var c := Vector2(step * (i + 0.5), sz.y / 2.0 - 10.0)
+				var col := Color("f2c14e") if i == lit_i else Color("e8d9a8")
+				if touch:
+					ci.draw_circle(c, 18.0, col)
+					ci.draw_arc(c, 18.0, 0, TAU, 20, Color("261e2c"), 1.5)
+				else:
+					var r := Rect2(c - Vector2(20, 16), Vector2(40, 32))
+					ci.draw_rect(r, col)
+					ci.draw_rect(r, Color("261e2c"), false, 1.5)
+				TutorialPages.text(ci, Vector2(c.x, c.y + 5.0), str(keys[i]), Color("261e2c"), UiTheme.SIZE, false)
+				TutorialPages.text(ci, Vector2(c.x, sz.y - 16.0), lab.call(i), UiTheme.COLOR_TEXT)
 
-	func _draw() -> void:
-		var cap := Vector2(28, 24)
-		var font := UiTheme.FONT_BOLD
-		var keys := ["←", "→", "↑", "Q"]
-		var captions: Array = Story.DRIVE_TEXT.get("keys", [])
-		var xs := [6.0, 40.0, 100.0, 160.0]
-		for i in keys.size():
-			var r := Rect2(Vector2(float(xs[i]), 2.0), cap)
-			draw_rect(r, Color("f2c14e"))
-			draw_rect(r, Color("261e2c"), false, 1.0)
-			var glyph := str(keys[i])
-			var w := font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SIZE).x
-			draw_string(font, Vector2(r.position.x + (cap.x - w) / 2.0, r.position.y + 16), glyph,
-					HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SIZE, Color("261e2c"))
-			if i < captions.size():
-				var c := str(captions[i])
-				var cw := UiTheme.FONT_REGULAR.get_string_size(c, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SIZE_SMALL).x
-				draw_string(UiTheme.FONT_REGULAR, Vector2(r.position.x + (cap.x - cw) / 2.0, r.end.y + 14), c,
-						HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SIZE_SMALL, UiTheme.COLOR_TEXT)
+
+## A 5-lane road down the middle of an area (dashes scroll by `scroll`); returns its rect.
+static func _tut_road(ci: Control, sz: Vector2, scroll: float) -> Rect2:
+	ci.draw_rect(Rect2(Vector2.ZERO, sz), Color("7cc35a"))
+	var w := 110.0
+	var road := Rect2(sz.x / 2.0 - w / 2.0, 0.0, w, sz.y)
+	ci.draw_rect(road.grow_individual(3, 0, 3, 0), Color("f0f0f0"))
+	ci.draw_rect(road, Color("4f5160"))
+	for i in range(1, LANES):
+		var x := road.position.x + i * w / LANES
+		var y := fmod(scroll, 30.0) - 30.0
+		while y < sz.y:
+			var a := maxf(y, 0.0)
+			var b := minf(y + 14.0, sz.y)
+			if b > a:
+				ci.draw_rect(Rect2(x - 1.0, a, 2.0, b - a), Color(1, 1, 1, 0.7))
+			y += 30.0
+	return road
+
+
+static func _tut_car(ci: Control, file: String, at: Vector2, angle: float, tint := Color.WHITE, scale := 1.0) -> void:
+	var tex := TutorialPages.tex(SPRITES + file)
+	if tex == null:
+		return
+	ci.draw_set_transform(at, angle, Vector2(scale, scale))
+	ci.draw_texture(tex, -tex.get_size() / 2.0, tint)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+static func _tut_fuel_can(ci: Control, c: Vector2, k: float) -> void:
+	var r := Rect2(c + Vector2(-6, -7) * k, Vector2(12, 15) * k)
+	ci.draw_rect(r, Color("e04a3a"))
+	ci.draw_rect(r, Color("261e2c"), false, 1.5)
+	ci.draw_rect(Rect2(c + Vector2(1, -10) * k, Vector2(4, 3) * k), Color("3a3a44"))
+	ci.draw_line(c + Vector2(-4, -5) * k, c + Vector2(4, 6) * k, Color("f8d8c8"), 2.0)
+	ci.draw_line(c + Vector2(4, -5) * k, c + Vector2(-4, 6) * k, Color("f8d8c8"), 2.0)

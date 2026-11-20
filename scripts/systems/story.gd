@@ -238,6 +238,67 @@ const DRIVE_TEXT := {
 	"result_score": "점수 %s · 최고 %d콤보", "result_bonus": "보너스 별 +%d",
 }
 
+## Minigame tutorials (TutorialPages, 11/20): shown before every play. The first time
+## from page 1, after that from repeat_page (a short summary). lines_touch / labels_touch
+## replace lines / labels on touch devices. pic: picture id for the minigame's painter.
+const TUTORIALS := {
+	"drive": {
+		"title": "납품 운전 설명", "repeat_page": 6,
+		"pages": [
+			{"head": "물품을 싣고 출발!", "pic": "goal", "labels": ["조달청", "수요기관"],
+				"lines": ["조달청에서 수요기관 건물까지 물품을 싣고 달려요.", "가속은 자동이에요. 부딪히지 않을수록 화물 상태가 좋아요.",
+					"도착할 때의 화물 상태가 그대로 납품 품질이 돼요."]},
+			{"head": "차선 바꾸기", "pic": "lanes",
+				"lines": ["← → 를 한 번 누를 때마다 한 칸씩 옮겨 가요.", "앞차와 공사 울타리를 피해 빈 차선으로 가요.",
+					"↓를 누르고 있으면 속도를 줄여요."],
+				"lines_touch": ["◀ ▶ 버튼을 한 번 누를 때마다 한 칸씩 옮겨 가요.", "앞차와 공사 울타리를 피해 빈 차선으로 가요.",
+					"[감속] 버튼을 누르고 있으면 속도를 줄여요."]},
+			{"head": "추월 콤보와 슬립스트림", "pic": "combo", "labels": ["2 콤보!", "아슬아슬! x2", "슬립스트림"],
+				"lines": ["차를 연달아 추월하면 콤보! 점수와 터보 게이지가 쌓여요.",
+					"앞차 바로 뒤에서 옆 차선으로 빠져 추월하면 점수 2배예요.",
+					"앞차 뒤에 붙어 달리면 더 빨라져요. 부딪히기 전에 빠져나와요!"]},
+			{"head": "점프와 터보", "pic": "jump", "labels": ["점프!", "터보 게이지", "Q 터보!"], "labels_touch": ["점프!", "터보 게이지", "터보!"],
+				"lines": ["↑(또는 Space)로 점프! 차, 공사 울타리, 기름 웅덩이를 넘어요.",
+					"터보 게이지가 차면 Q로 터보! 잠깐 빠르고 무적이에요.",
+					"가방에 에너지 드링크가 있으면 게이지가 없어도 터보를 쓸 수 있어요."],
+				"lines_touch": ["[점프] 버튼으로 차, 공사 울타리, 기름 웅덩이를 넘어요.",
+					"터보 게이지가 차면 [터보] 버튼! 잠깐 빠르고 무적이에요.",
+					"가방에 에너지 드링크가 있으면 게이지가 없어도 터보를 쓸 수 있어요."]},
+			{"head": "연료와 체크포인트", "pic": "fuel", "labels": ["연료", "체크포인트 +30", "연료통 +20"],
+				"lines": ["연료는 계속 줄어요. 다 떨어지면 견인차를 불러 납품이 늦어져요.",
+					"체크포인트를 지나거나 빨간 연료통을 먹으면 채워져요.",
+					"도착할 때 연료가 많이 남으면 보너스 별을 받아요."]},
+			{"head": "길 위의 물건", "pic": "items", "labels": ["별", "연료통", "드링크", "공구상자", "울타리", "기름", "예고"],
+				"lines": ["별 +500원, 에너지 드링크는 터보 게이지 +40, 공구상자는 화물 +10.",
+					"기름 웅덩이를 밟으면 옆 차선으로 미끄러져요.",
+					"화면 위쪽 가장자리의 '!'는 곧 나타날 장애물이에요."]},
+			{"head": "준비됐나요?", "pic": "keys", "labels": ["차선", "차선", "점프", "터보", "감속"],
+				"lines": ["← → 차선 변경 / ↑·Space 점프 / Q 터보 / ↓ 감속", "◀ 이전을 누르면 설명을 처음부터 다시 볼 수 있어요."],
+				"lines_touch": ["◀ ▶ 차선 변경 / [점프] / [터보] / [감속]", "◀ 이전을 누르면 설명을 처음부터 다시 볼 수 있어요."]},
+		],
+	},
+	"qc": {
+		"title": "품질 검사 설명", "repeat_page": 2,
+		"pages": [
+			{"head": "납품 전에 하나하나 검사!", "pic": "belt", "labels": ["검사 구역"],
+				"lines": ["계약한 물품이 컨베이어를 타고 왼쪽에서 오른쪽으로 지나가요.",
+					"노란 '검사 구역'을 지날 때 물품을 잘 살펴봐요."]},
+			{"head": "이런 게 불량품이에요", "pic": "defects", "labels": ["흠집", "얼룩", "금", "빠진 부분"],
+				"lines": ["흠집, 얼룩, 금, 빠진 부분 중 하나라도 있으면 불량이에요.",
+					"불량 위치는 물품마다 달라요. 꼼꼼히 봐요!"]},
+			{"head": "불량품은 불합격!", "pic": "reject", "labels": ["불합격!", "Space"], "labels_touch": ["불합격!", "터치"],
+				"lines": ["불량품이 검사 구역에 오면 Space(또는 화면 클릭, [불합격!] 버튼)!",
+					"멀쩡한 물품을 고르면 오판이에요. 다시 확인하느라 시간이 걸려요."],
+				"lines_touch": ["불량품이 검사 구역에 오면 화면이나 [불합격!] 버튼을 터치!",
+					"멀쩡한 물품을 고르면 오판이에요. 다시 확인하느라 시간이 걸려요."]},
+			{"head": "찾은 만큼 품질이 올라가요", "pic": "result", "labels": ["검사 전", "검사 후", "검수 기준"],
+				"lines": ["찾아낸 불량품은 업체가 새 제품으로 바꿔 줘요.",
+					"많이 찾을수록 납품 품질이 올라 검수를 통과하기 쉬워요. 놓친 불량은 그대로 실려 가요."]},
+		],
+	},
+}
+const TUTORIAL_BUTTONS := {"prev": "◀ 이전", "next": "다음 ▶", "go": "시작!", "skip": "건너뛰기", "count": "%d / %d"}
+
 # ================================================================ 수습 스토리 (11/19)
 # Story progress is GameState.tasks_completed (not the day, which drifts after a
 # forced leave): 0-14 = the 15 story tasks (TaskData.STORY_TASK_IDS), 15 = the
@@ -943,24 +1004,26 @@ func on_map_ready(map: String) -> void:
 				Dialogue.toast("%s에 도착! %s께 가요." % [destination_name(), (DESTINATIONS[map] as Dictionary)["where"]])
 
 
-## Guide popup before a drive: the first drive of the game (after the 11/20 highway
-## rebuild) and every school run. {} = no popup.
-func drive_guide() -> Dictionary:
-	var place := destination_id()
-	if place != "school" and GameState.has_flag("drive_guide2"):
-		return {}
-	GameState.set_flag("drive_guide2")
-	var lines: Array = []
-	if GameState.is_touch_device():
-		lines = ["◀ ▶ 버튼으로 차선을 바꿔요!", "가속은 자동이에요. 차를 연달아 추월하면 콤보, 바로 뒤에 붙으면 슬립스트림!",
-				"[점프]로 차와 공사 울타리를 넘고, 터보 게이지가 차면 [터보]로 잠깐 무적!"]
-	else:
-		lines = ["← → 화살표로 차선을 바꿔요!", "가속은 자동이에요. 차를 연달아 추월하면 콤보, 바로 뒤에 붙으면 슬립스트림!",
-				"↑(Space)로 차와 공사 울타리를 넘고, 터보 게이지가 차면 Q로 잠깐 무적!"]
-	lines.append("연료가 계속 줄어요. 체크포인트를 지나거나 연료통을 먹으면 채워져요.")
-	if place == "school":
-		lines.append("학교 가는 길은 차와 공사 구간이 적고 연료도 천천히 줄어요.")
-	return {"title": "운전 안내", "lines": lines, "btn": "알겠어요!"}
+## Pages for TutorialPages before a minigame ("drive", "qc"): the first time from
+## page 1, after that from the summary page. The school run adds a note on its last page.
+func tutorial(id: String) -> Dictionary:
+	var src: Dictionary = TUTORIALS[id]
+	var touch := GameState.is_touch_device()
+	var pages: Array = []
+	for p: Dictionary in src["pages"]:
+		var lines: Array = (p.get("lines_touch", p["lines"]) if touch else p["lines"]) as Array
+		var labels: Array = (p.get("labels_touch", p.get("labels", [])) if touch else p.get("labels", [])) as Array
+		pages.append({"head": p["head"], "pic": p["pic"], "lines": lines.duplicate(), "labels": labels})
+	if id == "drive" and destination_id() == "school":
+		(pages[pages.size() - 1]["lines"] as Array).append("학교 가는 길은 차와 공사 구간이 적고 연료도 천천히 줄어요.")
+	var flag := "tutorial_" + id
+	var start := int(src.get("repeat_page", pages.size() - 1)) if GameState.has_flag(flag) else 0
+	GameState.set_flag(flag)
+	var data := TUTORIAL_BUTTONS.duplicate()
+	data["title"] = src["title"]
+	data["pages"] = pages
+	data["start"] = start
+	return data
 
 
 ## Called by the drive minigame when the trip ends.
@@ -1137,15 +1200,16 @@ func _use_qc_station() -> void:
 	var c: int = await Dialogue.choose(n, "%s의 %s, 검사를 시작할까요?" % [v["name"], t["item"]], ["검사 시작", "나중에"])
 	if c != 0:
 		return
-	if not GameState.has_flag("qc_tutorial"):
-		GameState.set_flag("qc_tutorial")
-		var key := "A 버튼" if GameState.is_touch_device() else "Space"
-		await Dialogue.say(n, [
-			"컨베이어로 물품이 지나가요. 노란 검사 구역에 왔을 때 불량품이면 %s(또는 화면 터치)로 불합격!" % key,
-			"흠집, 얼룩, 금, 빠진 부분이 있으면 불량이에요. 멀쩡한 물건을 고르면 오판이에요.",
-			"찾아낸 불량품은 업체가 새 제품으로 바꿔 줘서 납품 품질이 올라가요.",
-		])
 	await _episode_say("qc_guide", "inspector")
+	var product := SPRITE_DIR + "product_%s.png" % str(t.get("kind", "device"))
+	var kind := str(t.get("kind", "device"))
+	var tp := TutorialPages.new()
+	get_tree().root.add_child(tp)
+	var tut := tutorial("qc")
+	tut["overlay"] = true
+	await tp.run(tut, func(ci: Control, pic: String, labels: Array, time: float) -> void:
+		QcGame.paint_tutorial(ci, pic, labels, time, product, kind))
+	tp.queue_free()
 	var defects := TaskData.qc_defects(base)
 	var qc := QcGame.new()
 	get_tree().root.add_child(qc)
