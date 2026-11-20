@@ -248,27 +248,27 @@ const DRIVE_TEXT := {
 ## (story_diary_<ch>, said by the player), once each.
 const STORY_CHAPTERS := {
 	1: {
-		"diary": ["오늘 계약한 물품들이 교실과 민원실, 보건소에 무사히 놓였어요.", "조달은 서류 속 숫자가 아니라 동네 분들의 일상을 돕는 일이네요."],
+		"diary": ["오늘 계약한 물품들이 교실과 민원실, 보건소에 무사히 놓였어.", "조달은 서류 속 숫자가 아니라 동네 분들의 일상을 돕는 일이구나."],
 	},
 	2: {
 		"morning_npc": "dari",
 		"morning": ["좋은 아침이에요, %s 씨! 어제 아낀 예산이 팀 예산으로 모였어요.", "오늘은 예산을 아낄 곳과 튼튼해야 할 곳을 잘 구분해 볼까요?"],
-		"diary": ["무조건 값싼 물건만 고르는 게 세금을 아끼는 길은 아니었어요.", "쓰는 분께 꼭 맞고 오래 가는 정직한 제품이 진짜 절약이네요."],
+		"diary": ["무조건 값싼 물건만 고르는 게 세금을 아끼는 길은 아니었어.", "쓰는 분께 꼭 맞고 오래 가는 정직한 제품이 진짜 절약이야."],
 	},
 	3: {
 		"morning_npc": "inspector",
 		"morning": ["%s 씨, 이제 병원과 경찰서, 소방서 요청이 기다리고 있어요.", "생명과 직결된 물품이니 품질검사실에서 더 꼼꼼히 살펴봐요!"],
-		"diary": ["서류상 불량 한 개가 현장에선 누군가에게 백 퍼센트의 위험이 돼요.", "절차가 깐깐한 건 사람을 살리고 무사히 집에 보내 주려는 거였어요."],
+		"diary": ["서류상 불량 한 개가 현장에선 누군가에게 백 퍼센트의 위험이 돼.", "절차가 깐깐한 건 사람을 살리고 무사히 집에 보내 주려는 거였어."],
 	},
 	4: {
 		"morning_npc": "team_leader",
 		"morning": ["비바람 예보와 환절기가 겹쳐 시급한 현장 요청이 들어왔어요.", "마음은 급해도 화물이 상하거나 지치지 않게 안전을 지켜 주세요."],
-		"diary": ["진짜 빠름은 무작정 과속하며 서두르는 게 아니었어요.", "평소에 다져 둔 바른 기준과 안전한 전달이 위기를 막아 주네요."],
+		"diary": ["진짜 빠름은 무작정 과속하며 서두르는 게 아니었어.", "평소에 다져 둔 바른 기준과 안전한 전달이 위기를 막아 주는구나."],
 	},
 	5: {
 		"morning_npc": "team_leader",
 		"morning": ["어느덧 신입 수습 마지막 단계네요, %s 씨.", "남은 세 건까지 잘 마치면 정식 담당자로 임명할게요. 힘내요!"],
-		"diary": ["좋은 제품을, 보다 싸고, 빠르고, 바르게.", "나는 보이지 않는 곳에서 한빛동의 하루를 잇는 조달 담당자예요."],
+		"diary": ["좋은 제품을, 보다 싸고, 빠르고, 바르게.", "나는 보이지 않는 곳에서 한빛동의 하루를 잇는 조달 담당자야."],
 	},
 	6: {
 		"morning_npc": "team_leader",
@@ -278,7 +278,7 @@ const STORY_CHAPTERS := {
 	},
 }
 ## Evening monologue after a forced leave (instead of the chapter diary).
-const FORCED_REST_LINES := ["오늘은 너무 무리했어요. 몸이 먼저 신호를 보내네요.", "푹 쉬고 내일 다시 차근차근 해 봐요."]
+const FORCED_REST_LINES := ["오늘은 너무 무리했어. 몸이 먼저 신호를 보내네.", "푹 쉬고 내일 다시 차근차근 해 보자."]
 
 ## One episode per story task. assign: 김 팀장. pc_guide: pc_npc before the 나라장터
 ## window (once, task["pc_guided"]). qc_guide: 서 검사관 before the belt. car_guide:
@@ -894,7 +894,7 @@ func use_quick_item(in_drive: bool) -> String:
 func on_exit(from_map: String, to_map: String, spawn: String) -> void:
 	if from_map == "home" and to_map == "office":
 		if GameState.day_over:
-			Dialogue.toast("오늘은 푹 쉬어요. 침대에서 자면 내일이 와요.", UiTheme.COLOR_WARN)
+			Dialogue.toast("오늘은 푹 쉬자. 침대에서 자면 내일이 와.", UiTheme.COLOR_WARN)
 			return
 		GameState.minutes = maxi(GameState.minutes, GameState.WORK_START)
 		await SceneRouter.goto_map(to_map, spawn)
@@ -980,9 +980,9 @@ func play_home_intro() -> void:
 	_busy = true
 	Sound.play("alarm")
 	await Dialogue.say("", [
-		"띠리리리! 알람이 울려요.",
-		"오늘은 조달청 첫 출근 날! %s 씨, 일어날 시간이에요." % GameState.player_name,
-		"공공기관 살림을 대신 챙기는 곳이라는데, 어떤 하루가 될까요?",
+		"띠리리리! 알람이 울린다.",
+		"오늘은 조달청 첫 출근 날! 얼른 일어나야지.",
+		"공공기관 살림을 대신 챙기는 곳이라는데, 어떤 하루가 될까?",
 	])
 	if GameState.is_touch_device():
 		await Dialogue.say("", ["[조작] 이동: 화면 왼쪽을 누르고 끌기 (끝까지 밀면 달리기)", "말 걸기·조사: A 버튼 / 스마트폰 메뉴: B 버튼 / 노란 버튼: 아이템", "아래쪽 메뉴 바에서 업무·가방·성장을 볼 수 있어요."])
@@ -1446,9 +1446,9 @@ func _talk_dari() -> void:
 # ================================================================ home
 func _use_bed() -> void:
 	if not GameState.day_over:
-		await Dialogue.say("", ["아직 잘 시간이 아니에요. 출근해야죠!"])
+		await Dialogue.say("", ["아직 잘 시간이 아니야. 출근해야지!"])
 		return
-	var c: int = await Dialogue.choose("", "푹 자고 내일을 맞을까요?", ["잔다", "조금 더 깨어 있기"])
+	var c: int = await Dialogue.choose("", "푹 자고 내일을 맞을까?", ["잔다", "조금 더 깨어 있기"])
 	if c != 0:
 		return
 	Sound.play("sleep")
@@ -1458,7 +1458,7 @@ func _use_bed() -> void:
 
 
 func _use_wardrobe() -> void:
-	var c: int = await Dialogue.choose("옷장", "옷을 갈아입을까요?", ["갈아입기", "그만두기"])
+	var c: int = await Dialogue.choose("옷장", "옷을 갈아입을까?", ["갈아입기", "그만두기"])
 	if c == 0:
 		GameState.editing_look = true
 		SceneRouter.goto(SceneRouter.CHARACTER_CREATE)
@@ -1466,12 +1466,12 @@ func _use_wardrobe() -> void:
 
 func _use_fridge() -> void:
 	if GameState.fridge_day == GameState.day:
-		await Dialogue.say("", ["냉장고가 텅 비었어요. 내일 또 채워 둘게요."])
+		await Dialogue.say("", ["냉장고가 텅 비었네. 내일 또 채워 둬야지."])
 		return
 	GameState.fridge_day = GameState.day
 	GameState.add_item("energybar")
 	GameState.popup.emit("에너지 드링크 +1", UiTheme.COLOR_GOOD)
-	await Dialogue.say("", ["냉장고에서 에너지 드링크를 챙겼어요!", "운전 중에 Q(터보 버튼)로 마시면 바로 터보가 돼요."])
+	await Dialogue.say("", ["냉장고에서 에너지 드링크를 챙겼다!", "운전하다가 Q(터보 버튼)로 마시면 바로 터보!"])
 
 
 func _use_cooler() -> void:
