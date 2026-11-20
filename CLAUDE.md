@@ -158,6 +158,7 @@ scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn, 11/2
                                  출발·도착 건물 그림은 assets bld_<id>.png(tools/gen_placeholders.py가 타이틀 마을에서 잘라 냄)
 scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
                                  시작 전 튜토리얼 4쪽(Story._use_qc_station -> TutorialPages, Story.TUTORIALS["qc"])
+                                 배속(11/20): [속도] 1·2·3·4배 버튼 또는 ← →, 카운트다운은 보통 속도. 고른 배속은 실행 중 유지(QcGame.speed_index), 보상은 같음
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.
 assets/fonts/            레벨업 폰트 Regular·Bold (OFL)
 assets/sprites/placeholder/  도트 (tools/gen_placeholders.py로 생성). 나르미·달이는 공식 마스코트 그림(tools/ref/mascots.png)을 보고 그린 픽셀 격자(NARUMI·DARI),

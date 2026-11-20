@@ -10,12 +10,19 @@ extends CanvasLayer
 ##   zone ("검사 구역"), reject ("불합격!"), hint, found ("찾은 불량 %d/%d"), wrong ("오판 %d"),
 ##   left ("남은 물품 %d"), hit, miss, false_alarm (flash texts), go ("시작!")
 ## Controls: interact (Space / Enter / touch A) or a tap rejects the item in the zone.
+## Belt speed (11/20): 1x-4x buttons next to the reject button, or move_left / move_right.
+##   The choice is kept for the session (speed_index). data keys: speed_label ("속도"),
+##   speeds (button texts, one per SPEEDS entry).
 ## Before it, Story shows the paged tutorial (TutorialPages, pictures: paint_tutorial()).
 
 signal _done(result: Dictionary)
 
 ## Tests set this: rejects every defective item in the zone, at double speed.
 static var autoplay := false
+## Belt speed chosen by the player (index into SPEEDS), kept between inspections.
+static var speed_index := 0
+
+const SPEEDS := [1.0, 2.0, 3.0, 4.0]
 
 const INK := Color("261e2c")
 const CREAM := Color("fbf3dc")
@@ -49,6 +56,7 @@ var _missed := 0
 var _wrong := 0
 var _finished := false
 var _rng := RandomNumberGenerator.new()
+var _speed_buttons: Array[Button] = []
 
 
 func run(data: Dictionary) -> Dictionary:
@@ -155,6 +163,23 @@ func _build() -> void:
 	for key: String in ["font_color", "font_hover_color", "font_pressed_color"]:
 		reject.add_theme_color_override(key, Color.WHITE)
 	reject.pressed.connect(_reject)
+	var speed_box := HBoxContainer.new()
+	speed_box.add_theme_constant_override("separation", 2)
+	speed_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bottom.add_child(speed_box)
+	var sl := UiTheme.make_label(str(_data.get("speed_label", "")), UiTheme.SIZE_SMALL, TEXT, true)
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	speed_box.add_child(sl)
+	var names: Array = _data.get("speeds", [])
+	for i in SPEEDS.size():
+		var b := Button.new()
+		b.text = str(names[i]) if i < names.size() else "x%d" % int(SPEEDS[i])
+		b.focus_mode = Control.FOCUS_NONE  # Space stays the reject key
+		b.custom_minimum_size = Vector2(44, 26)
+		b.pressed.connect(_set_speed.bind(i))
+		speed_box.add_child(b)
+		_speed_buttons.append(b)
+	_style_speed_buttons()
 	bottom.add_child(reject)
 	_refresh_labels()
 
@@ -168,6 +193,8 @@ func _process(delta: float) -> void:
 	if _finished:
 		return
 	var dt := delta * (2.0 if autoplay else 1.0)
+	if _t >= 0.0 and not autoplay:  # the countdown stays at normal speed
+		dt *= float(SPEEDS[speed_index])
 	_t += dt
 	if _t < 0.0:
 		_flash.text = str(ceili(-_t))
@@ -273,6 +300,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact"):
 		get_viewport().set_input_as_handled()
 		_reject()
+	elif event.is_action_pressed("move_right"):
+		get_viewport().set_input_as_handled()
+		_set_speed(mini(speed_index + 1, SPEEDS.size() - 1))
+	elif event.is_action_pressed("move_left"):
+		get_viewport().set_input_as_handled()
+		_set_speed(maxi(speed_index - 1, 0))
+
+
+func _set_speed(i: int) -> void:
+	if i == speed_index:
+		return
+	speed_index = i
+	Sound.play("select")
+	_style_speed_buttons()
+
+
+## The chosen speed button is filled in, the others are outlined.
+func _style_speed_buttons() -> void:
+	for i in _speed_buttons.size():
+		var b := _speed_buttons[i]
+		var on := i == speed_index
+		var bg := Color("2e6fb0") if on else CREAM
+		for st: String in ["normal", "hover", "pressed"]:
+			b.add_theme_stylebox_override(st, _box(bg.lightened(0.1) if st == "hover" else bg, INK, 2, 4, 2))
+		for key: String in ["font_color", "font_hover_color", "font_pressed_color"]:
+			b.add_theme_color_override(key, Color.WHITE if on else TEXT)
 
 
 func _box(bg: Color, border: Color, width: int, radius: int, pad: int = 4) -> StyleBoxFlat:
