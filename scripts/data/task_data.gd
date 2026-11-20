@@ -1,8 +1,8 @@
 class_name TaskData
 ## Procurement tasks (the core loop content) and facility upgrades.
-## The first task is always TASKS[0] (tutorial); after that a random task is
-## picked: first a destination (never the previous one, so every place comes up),
-## then one of its tasks (pick_index). "destination" is a key of Story.DESTINATIONS
+## The first 15 tasks follow STORY_TASK_IDS (수습 스토리, next_task_index); after that
+## a random task is picked: first a destination (never the previous one, so every
+## place comes up), then one of its tasks (pick_index). "destination" is a key of Story.DESTINATIONS
 ## (school, fire, clinic, center, nursing, police, hospital) with a map in SceneRouter.MAPS.
 ##
 ## Money: "budget" and vendor "price" are in 만원. The unspent budget goes to the
@@ -561,3 +561,44 @@ static func get_upgrade(id: String) -> Dictionary:
 		if str(u["id"]) == id:
 			return u
 	return {}
+
+
+# ================================================================ 수습 스토리 (11/19)
+## The first 15 tasks follow this fixed order (by id, so TASKS indices stay
+## untouched for old saves). Chapter = 3 tasks (Story.DAILY_TASKS). After the 15th
+## report the game switches to free mode: pick_index() and random urgent tasks.
+const STORY_TASK_IDS := [
+	# 챕터 1: 공공 구매와 나라장터 입문
+	"school_desks", "center_chairs", "clinic_wheelchairs",
+	# 챕터 2: 예산 절감과 품질 적합성의 균형
+	"police_cones", "school_projectors", "nursing_beds",
+	# 챕터 3: 품질검사와 시민·대원 안전
+	"hospital_beds", "police_vests", "fire_suits",
+	# 챕터 4: 긴급 조달과 안전 운송·컨디션 관리
+	"center_generators", "clinic_thermometers", "fire_breathing",
+	# 챕터 5: 자율 판단과 최고 난도 종합 완수
+	"nursing_mats", "school_microscopes", "hospital_monitors",
+]
+## Always urgent during the story (chapter 4), never random there.
+const STORY_URGENT_IDS := ["center_generators", "clinic_thermometers"]
+
+
+## TASKS index of a task id, or -1.
+static func find_task_index(task_id: String) -> int:
+	for i in TASKS.size():
+		if str((TASKS[i] as Dictionary)["id"]) == task_id:
+			return i
+	return -1
+
+
+## Next task: the story order while completed_count < 15, then pick_index().
+static func next_task_index(completed_count: int, last: int, rng: RandomNumberGenerator) -> int:
+	if completed_count >= 0 and completed_count < STORY_TASK_IDS.size():
+		var index := find_task_index(str(STORY_TASK_IDS[completed_count]))
+		if index >= 0:
+			return index
+	return pick_index(last, rng)
+
+
+static func is_story_urgent(task_id: String) -> bool:
+	return STORY_URGENT_IDS.has(task_id)

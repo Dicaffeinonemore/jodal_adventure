@@ -175,6 +175,11 @@ streamlit_app.py, requirements.txt, .streamlit/, deploy/   Streamlit Community C
 -청사 복귀, 팀장 보고-> 보상(팀 예산 = 아낀 예산, 평판, 경험치, 성과급) -> `NONE`.
 검수 점수 = 납품 품질(업체 품질 + 품질 검사로 바꾼 불량품 몫, `Story.delivered_quality()`) × 화물 상태. 업무의 `required` 이상이면 보통, +15 이상이면 우수(`TaskData.grade`).
 팀 예산은 하단 바 [성장]에서 시설 업그레이드(`TaskData.UPGRADES`)에 쓴다.
+
+수습 스토리(11/19): `GameState.tasks_completed` 0~14는 `TaskData.STORY_TASK_IDS` 순서의 고정 업무(3건 = 1챕터),
+15번째 보고 뒤 `Story._play_ending()`, 이후 자유 모드(`pick_index`·랜덤 긴급). 일수가 아니라 완료 업무 수로 판정한다(강제 퇴근 대비).
+대사는 `Story.STORY_EPISODES`(업무별)·`STORY_CHAPTERS`(출근 브리핑·퇴근 일기)·`AMBIENT_AFTER`(납품 후 주민, 플래그 `done_<업무 id>`)·`ENDING_STORY`.
+스토리 대사의 `%s`는 `Story._fmt()`가 `replace`로 이름을 넣는다(`%` 연산자 금지).
 업체 선택은 `ProcurementPC`(모니터 창), 식사는 구내식당 식권 발매기 -> `MealWindow`(하루 `ItemDB.MEALS_PER_DAY`끼).
 두 창은 `Dialogue.set_overlay()`로 입력을 잠그고 터치 UI·하단 바를 숨긴다. 문구는 전부 Story가 넘긴다.
 

@@ -10,7 +10,9 @@ extends Node
 ##   {"index": int (TaskData index), "step": Step, "vendor": int (-1 = none),
 ##    "cargo": int (0-100, after driving), "grade": String (after inspection),
 ##    "urgent": bool, "discount": int (vendor index on sale, -1 = none),
-##    "discount_rolled": bool, "stars": int (picked up while driving)}
+##    "discount_rolled": bool, "stars": int (picked up while driving),
+##    "pc_guided" / "car_guided": bool (story episode guide already said)}
+## Story progress: tasks_completed 0-14 = 15 story tasks (STORY_EPISODES), then free mode.
 ##
 ## All player-facing text lives in this file and in scripts/data/task_data.gd.
 ## Review policy facts (POLICY_TIPS, GENERAL_TIPS) against official 조달청 sources
@@ -209,6 +211,250 @@ const DASHCAM_QUIZ := [
 	["도로에 공사 울타리가 보여요. 어떻게 할까요?", ["속도를 줄이고 비켜 간다", "경적을 울리며 지나간다", "울타리를 밀고 간다"], 0,
 			"정답! 공사 구간에서는 천천히, 미리 차선을 바꿔요."],
 ]
+
+# ================================================================ 수습 스토리 (11/19)
+# Story progress is GameState.tasks_completed (not the day, which drifts after a
+# forced leave): 0-14 = the 15 story tasks (TaskData.STORY_TASK_IDS), 15 = the
+# ending in _report(), 15+ = free mode. Chapter = story_chapter() (3 tasks each).
+# "%s" in these lines is the player name (_fmt: replace, never the % operator).
+
+## Morning brief on the commute (story_morning_<ch>) and evening diary at home
+## (story_diary_<ch>, said by the player), once each.
+const STORY_CHAPTERS := {
+	1: {
+		"diary": ["오늘 계약한 물품들이 교실과 민원실, 보건소에 무사히 놓였어요.", "조달은 서류 속 숫자가 아니라 동네 분들의 일상을 돕는 일이네요."],
+	},
+	2: {
+		"morning_npc": "dari",
+		"morning": ["좋은 아침이에요, %s 씨! 어제 아낀 예산이 팀 예산으로 모였어요.", "오늘은 예산을 아낄 곳과 튼튼해야 할 곳을 잘 구분해 볼까요?"],
+		"diary": ["무조건 값싼 물건만 고르는 게 세금을 아끼는 길은 아니었어요.", "쓰는 분께 꼭 맞고 오래 가는 정직한 제품이 진짜 절약이네요."],
+	},
+	3: {
+		"morning_npc": "inspector",
+		"morning": ["%s 씨, 이제 병원과 경찰서, 소방서 요청이 기다리고 있어요.", "생명과 직결된 물품이니 품질검사실에서 더 꼼꼼히 살펴봐요!"],
+		"diary": ["서류상 불량 한 개가 현장에선 누군가에게 백 퍼센트의 위험이 돼요.", "절차가 깐깐한 건 사람을 살리고 무사히 집에 보내 주려는 거였어요."],
+	},
+	4: {
+		"morning_npc": "team_leader",
+		"morning": ["비바람 예보와 환절기가 겹쳐 시급한 현장 요청이 들어왔어요.", "마음은 급해도 화물이 상하거나 지치지 않게 안전을 지켜 주세요."],
+		"diary": ["진짜 빠름은 무작정 과속하며 서두르는 게 아니었어요.", "평소에 다져 둔 바른 기준과 안전한 전달이 위기를 막아 주네요."],
+	},
+	5: {
+		"morning_npc": "team_leader",
+		"morning": ["어느덧 신입 수습 마지막 단계네요, %s 씨.", "남은 세 건까지 잘 마치면 정식 담당자로 임명할게요. 힘내요!"],
+		"diary": ["좋은 제품을, 보다 싸고, 빠르고, 바르게.", "나는 보이지 않는 곳에서 한빛동의 하루를 잇는 조달 담당자예요."],
+	},
+	6: {
+		"morning_npc": "team_leader",
+		"morning": ["정식 담당자로 맞이하는 출근길이네요, %s 씨!", "이제부터는 한빛동 곳곳의 요청을 자유롭게 맡아 이어 주세요."],
+		"extra_npc": "narumi",
+		"extra": ["수습 기간 동안 정말 든든하게 성장하셨어요!", "앞으로도 궁금한 조달 상식이 있으면 언제든 말을 걸어 주세요."],
+	},
+}
+## Evening monologue after a forced leave (instead of the chapter diary).
+const FORCED_REST_LINES := ["오늘은 너무 무리했어요. 몸이 먼저 신호를 보내네요.", "푹 쉬고 내일 다시 차근차근 해 봐요."]
+
+## One episode per story task. assign: 김 팀장. pc_guide: pc_npc before the 나라장터
+## window (once, task["pc_guided"]). qc_guide: 서 검사관 before the belt. car_guide:
+## 달이 before driving (once, task["car_guided"]). pass_good / pass_ok: the receiver
+## for 우수 / 보통 (미흡 keeps the plain line). citizen_after: citizen_id after a pass.
+const STORY_EPISODES := {
+	"school_desks": {
+		"assign": ["첫 업무예요. 한빛초에서 낡은 교실 책상 30개 교체를 요청했어요.", "아이들이 매일 쓸 책상이니 검수 기준 60점을 꼭 확인해 봐요.", "자리에 있는 나라장터 PC에서 적합한 업체부터 골라 주세요."],
+		"pc_npc": "narumi",
+		"pc_guide": ["나라장터 공고 자격을 갖춘 세 업체가 후보로 올라와 있어요.", "너무 싼 곳은 기준(60점)에 못 미쳐요. 가격과 품질을 함께 봐요!"],
+		"pass_good": "흔들리던 책상이 싹 바뀌어서 내일 수업이 한결 즐겁겠어요!",
+		"pass_ok": "기준에 잘 맞춰 주셨네요. 아이들이 불편 없이 쓰겠어요.",
+		"citizen_id": "student",
+		"citizen_after": ["와, 새 책상이다! 이제 지우개질을 세게 해도 안 흔들려요!"],
+	},
+	"center_chairs": {
+		"assign": ["행정복지센터에서 민원실 대기 의자 40개를 요청해 왔어요.", "요구 기준이 45점으로 낮은 편이니 예산을 알뜰히 써 볼까요?", "나라장터 PC에서 조건에 맞는 실속 있는 업체를 골라 주세요."],
+		"pc_npc": "dari",
+		"pc_guide": ["무조건 비싸고 화려한 제품이 좋은 조달은 아니에요!", "기준(45점)만 넘기면 호텔급까진 필요 없어요. 예산을 아껴 봐요!"],
+		"pass_good": "어르신들이 서서 기다리실 때마다 죄송했는데 정말 다행이에요!",
+		"pass_ok": "민원실에 두기 딱 알맞은 의자네요. 예산도 아끼고 고마워요!",
+		"citizen_id": "citizen",
+		"citizen_after": ["무릎이 시큰거렸는데 새 의자가 튼튼해서 앉기 참 편하네요."],
+	},
+	"clinic_wheelchairs": {
+		"assign": ["한빛보건소에서 어르신용 휠체어 15대 조달을 요청했어요.", "거동이 불편한 분들이 타시니 기준 60점을 꼭 챙겨 주세요.", "나라장터 PC에서 업체 설명까지 꼼꼼히 읽고 계약해 봐요."],
+		"pc_npc": "narumi",
+		"pc_guide": ["가장 싼 업체 설명을 보니 바퀴가 빠진다는 이야기가 있네요.", "안전이 걸린 물품은 가격보다 믿고 탈 수 있는지가 먼저예요!"],
+		"pass_good": "바퀴도 부드럽고 튼튼해서 어르신들이 안심하고 타시겠어요!",
+		"pass_ok": "예방접종 날마다 휠체어가 부족했는데 제때 잘 도착했네요.",
+		"citizen_id": "nurse",
+		"citizen_after": ["진료실까지 어르신들을 모시기가 한결 수월해졌어요. 고마워요!"],
+	},
+	"police_cones": {
+		"assign": ["한빛경찰서에서 통학로 정리용 안전 고깔 200개를 요청했어요.", "검수 기준은 45점이에요. 예산을 아껴 팀 시설에 보탤 기회죠!", "나라장터 PC에서 업체를 골라 경찰서로 전달해 주세요."],
+		"pc_npc": "dari",
+		"pc_guide": ["팀 예산이 모이면 [성장]에서 '업체 분석 노트'를 살 수 있어요!", "고깔은 기준이 낮으니 알뜰하게 골라 팀 예산을 모아 볼까요?"],
+		"pass_good": "반사띠가 선명해서 아침 등굣길 교통 정리가 훨씬 안전해지겠어요!",
+		"pass_ok": "낡은 고깔을 싹 바꿀 수 있겠네요. 수고 많으셨어요!",
+		"citizen_id": "police",
+		"citizen_after": ["새 고깔 덕분에 운전자분들이 서행 구간을 멀리서도 알아보네요!"],
+	},
+	"school_projectors": {
+		"assign": ["한빛초에서 교실용 빔프로젝터 5대를 요청했어요. 기준은 70점!", "충격에 약한 [파손 주의] 전자제품이니 운송할 때 특히 조심해요.", "나라장터 PC에서 가성비와 품질을 잘 따져 업체를 골라 봐요."],
+		"pc_npc": "narumi",
+		"pc_guide": ["기술력 있는 신생·중소기업도 나라장터에서 공정하게 경쟁해요.", "파손 주의 화물은 부딪히면 피해가 커지니 여유 점수도 챙겨요!"],
+		"car_guide": ["전자제품은 부딪히면 화물 피해가 1.5배로 크게 들어와요!", "앞차와 거리를 두고 침착하게 운전해서 교실까지 지켜 줘요!"],
+		"pass_good": "상자 하나 안 찌그러지고 왔네요! 뒷자리에서도 잘 보이겠어요!",
+		"pass_ok": "무사히 도착했네요. 흐릿했던 교실 화면을 바로 바꿀 수 있겠어요.",
+		"citizen_id": "teacher",
+		"citizen_after": ["화면이 또렷해지니까 수업 시간 아이들 눈이 반짝반짝 빛나요!"],
+	},
+	"nursing_beds": {
+		"assign": ["시립요양원에서 어르신용 전동 침대 10대를 요청해 왔어요.", "하루 종일 머무시는 침대라 검수 기준이 70점으로 높아요.", "나라장터 PC에서 잔고장 없이 튼튼한 업체를 골라 주세요."],
+		"pc_npc": "narumi",
+		"pc_guide": ["값만 보고 샀다가 모터가 고장 나면 어르신들이 큰 불편을 겪어요.", "수리비로 세금이 두 번 들지 않게 처음부터 바른 곳을 골라 봐요!"],
+		"pass_good": "소음도 적고 튼튼해서 오늘 밤엔 어르신들 모두 푹 주무시겠어요!",
+		"pass_ok": "기준에 잘 맞네요. 생활실 어르신들께 바로 배정해 드릴게요.",
+		"citizen_id": "grandma",
+		"citizen_after": ["전동 침대 등받이가 스르륵 올라가니 허리가 참 편하네요!"],
+	},
+	"hospital_beds": {
+		"assign": ["시립병원에서 입원실 병동 침대 12대를 요청했어요. 기준은 70점!", "환자분들 낙상 사고가 없도록 품질검사까지 철저히 챙겨 봐요.", "나라장터 PC에서 업체를 선정한 뒤 품질검사실로 가 주세요."],
+		"qc_guide": ["병동 침대는 바퀴 잠금장치 하나만 헐거워도 큰 사고로 이어져요.", "검사는 점수를 매기는 게 아니라 환자를 지키는 약속이에요!"],
+		"pass_good": "고정 장치까지 완벽하네요! 입원 환자분들을 안심하고 모시겠어요!",
+		"pass_ok": "병상이 급했는데 기준에 맞춰 보내 주셔서 숨통이 트였어요.",
+		"citizen_id": "doctor",
+		"citizen_after": ["병동 침대가 흔들림 없으니 진료팀도 마음 놓고 치료할 수 있어요."],
+	},
+	"police_vests": {
+		"assign": ["한빛경찰서에서 출동 대원용 방검복 30벌을 요청했어요.", "경찰관의 생명을 지키는 장비라 검수 기준이 75점으로 높아요.", "나라장터 PC에서 검증된 보호 장비 업체를 골라 주세요."],
+		"qc_guide": ["보호 장비는 겉모습만 봐선 실제 방호 성능을 알 수 없어요.", "벨트 위 작은 흠집이나 빠진 부분도 놓치지 말고 걸러 내요!"],
+		"pass_good": "검증된 방검복 덕분에 오늘 야간 출동도 든든하게 보내겠어요!",
+		"pass_ok": "방호 기준을 잘 통과했네요. 순찰팀에 바로 지급할게요.",
+		"citizen_id": "police",
+		"citizen_after": ["몸에 잘 맞고 단단해서 현장에서 자신 있게 움직일 수 있어요!"],
+	},
+	"fire_suits": {
+		"assign": ["한빛소방서에서 화재 진압용 방화복 20벌을 요청해 왔어요.", "불길 속으로 들어가는 대원들이 입을 옷이니 타협은 금물이에요.", "나라장터 PC에서 내열 기준(70점)을 확실히 넘기는 곳을 골라요."],
+		"pc_npc": "narumi",
+		"pc_guide": ["내열 시험 점수가 낮은 제품은 화염 앞에서 너무 위험해요.", "조달청이 품질관리를 엄격히 하는 이유가 바로 여기에 있어요!"],
+		"qc_guide": ["방화복의 작은 얼룩이나 실밥 터짐도 열기 속에선 치명적이에요.", "대원들이 무사히 가족 품으로 돌아가도록 끝까지 집중해 봐요!"],
+		"pass_good": "불길 속에서 믿을 건 동료와 이 장비뿐이에요. 정말 고마워요!",
+		"pass_ok": "내열 기준을 통과했네요. 출동 차고에 바로 비치해 둘게요.",
+		"citizen_id": "firefighter",
+		"citizen_after": ["깐깐하게 챙겨 주신 방화복 입고 한빛동 안전을 빈틈없이 지킬게요!"],
+	},
+	"center_generators": {
+		"assign": ["폭우로 정전이 날까 봐 센터에서 비상 발전기 2대를 요청했어요.", "기계 장비라 [파손 주의]예요. 기준 65점에 맞춰 빠르게 준비해요!"],
+		"car_guide": ["무거운 발전기는 도로에서 부딪히면 고장 나기 쉬워요!", "팀 예산으로 차량 정비나 휴게실 소파를 챙겨 두면 큰 힘이 돼요!"],
+		"pass_good": "먹구름이 몰려오기 전에 흠집 없이 와서 주민 불편을 막았어요!",
+		"pass_ok": "비 오기 전에 제때 도착했네요. 정전 대비 준비 끝이에요!",
+		"citizen_id": "citizen",
+		"citizen_after": ["비바람이 불어도 동네 센터 불이 환히 켜져 있으니 든든하네요."],
+	},
+	"clinic_thermometers": {
+		"assign": ["환절기 열감기 환자가 몰려 보건소에 체온계 100개가 시급하대요.", "기준 70점에 [파손 주의] 의료기기니 급할수록 침착하게 움직여요!"],
+		"car_guide": ["서두르다 기기가 깨지거나 %s 씨가 지치면 오히려 더 늦어져요!", "피로할 땐 구내식당에서 밥도 챙겨 먹으며 안전하게 다녀와요!"],
+		"pass_good": "접수 줄이 길어졌는데 정확한 기기가 파손 없이 와서 살았어요!",
+		"pass_ok": "딱 맞춰 도착했네요! 대기 중인 주민분들 체온부터 바로 잴게요.",
+		"citizen_id": "nurse",
+		"citizen_after": ["체온이 일초 만에 정확히 재져서 진료 대기 줄이 금방 줄었어요!"],
+	},
+	"fire_breathing": {
+		"assign": ["소방서에서 화재 현장용 공기호흡기 10세트를 요청했어요.", "기준 75점에 [파손 주의]까지, 무거운 책임이 따르는 임무예요.", "나라장터 PC에서 신뢰할 수 있는 업체를 신중히 골라 주세요."],
+		"pc_npc": "narumi",
+		"pc_guide": ["위기 순간이라도 아무 업체나 주먹구구로 부르지 않아요.", "평소에 바른 기준을 다져 두었기에 급할 때도 빠르게 움직이죠!"],
+		"pass_good": "연기 속에선 이 호흡기가 생명줄이에요. 완벽하게 챙겨 주셨네요!",
+		"pass_ok": "밸브 이상 없이 기준 통과예요. 소방차에 바로 실어 둘게요.",
+		"citizen_id": "firefighter",
+		"citizen_after": ["숨쉬기가 한결 편안해요! 이제 어떤 연기 속에서도 거뜬해요!"],
+	},
+	"nursing_mats": {
+		"assign": ["수습 막바지 업무는 요양원 미끄럼 방지 매트 50장이에요.", "이제 제가 길게 말하지 않아도 %s 씨 스스로 잘 판단하겠죠?", "나라장터 PC에서 기준(50점)과 예산을 살펴 처리해 주세요."],
+		"pc_npc": "dari",
+		"pc_guide": ["와, 이제 공고문만 봐도 척척이네요! 요구 기준은 50점이에요.", "여기서 예산을 아껴 두면 마지막 큰 임무가 훨씬 든든할 거예요!"],
+		"pass_good": "비 온 뒤라 복도가 미끄러웠는데 도톰한 매트 덕분에 안심이에요!",
+		"pass_ok": "복도와 욕실 앞에 넉넉히 깔 수 있겠네요. 고마워요!",
+		"citizen_id": "caregiver",
+		"citizen_after": ["욕실 앞까지 꼼꼼히 깔려서 어르신들 산책 모시기가 참 든든해요."],
+	},
+	"school_microscopes": {
+		"assign": ["첫 책상을 보냈던 한빛초에서 과학실 현미경 15대를 요청했어요.", "기준 75점에 [파손 주의] 정밀 기기예요. 그동안 쌓은 실력을 보여 줘요!"],
+		"pc_npc": "narumi",
+		"pc_guide": ["첫 교실 책상을 고르던 때가 엊그제 같은데 정말 능숙해졌네요!", "아이들의 호기심을 비춰 줄 현미경이니 흔들림 없이 전달해 봐요."],
+		"pass_good": "첫 책상부터 현미경까지, %s 씨 덕분에 학교가 활기차졌어요!",
+		"pass_ok": "렌즈 상태가 깨끗하네요! 과학 실습 시간에 바로 쓰겠어요.",
+		"citizen_id": "student",
+		"citizen_after": ["선생님, 새 현미경으로 보니까 나뭇잎 세포가 진짜로 보여요!"],
+	},
+	"hospital_monitors": {
+		"assign": ["수습 마지막 과제는 시립병원 중환자실 환자 감시 장치 6대예요.", "검수 기준 80점에 [파손 주의]까지, 가장 막중한 임무예요.", "그동안 배운 모든 걸 담아 한빛동의 소중한 생명을 이어 주세요."],
+		"qc_guide": ["생명 신호를 단 일초도 놓치면 안 되는 중환자실 핵심 장비예요.", "%s 씨라면 믿어요. 마지막까지 타협 없는 검사로 완수해 봐요!"],
+		"pass_good": "까다로운 80점 기준을 통과해 완벽히 도착하다니 정말 든든해요!",
+		"pass_ok": "기준 통과예요! 중환자실 의료진 모두가 애타게 기다리던 장비예요.",
+		"citizen_id": "doctor",
+		"citizen_after": ["환자분들의 맥박과 호흡을 일초도 놓치지 않고 지킬 수 있어요!"],
+	},
+}
+
+## After a delivery passes (flag "done_<task id>"), nearby people talk about it
+## instead of AMBIENT. Story order: the last entry with its flag set wins.
+const AMBIENT_AFTER := {
+	"student": [
+		["school_desks", ["새 책상은 하나도 안 흔들려요!", "이제 받아쓰기 글씨도 반듯하게 써져요."]],
+		["school_microscopes", ["과학실 현미경으로 양파 껍질도 봤어요!", "저도 커서 조달청에서 일하고 싶어요!"]],
+	],
+	"teacher": [
+		["school_desks", ["새 책상 덕분에 아이들 자세가 바르게 됐어요.", "꼼꼼히 골라 주셔서 정말 고마워요."]],
+		["school_projectors", ["빔프로젝터 화면이 또렷해서 수업이 즐거워요.", "뒷자리 아이들도 이제 화면을 잘 봐요."]],
+		["school_microscopes", ["과학 실습이 제일 인기 있는 수업이 됐어요.", "아이들이 현미경 차례를 손꼽아 기다려요."]],
+	],
+	"citizen": [
+		["center_chairs", ["번호표 뽑고 기다리면 금방 불러 줘요.", "새 의자가 튼튼해서 서류 기다릴 때 허리가 한결 편해요!"]],
+		["center_generators", ["지난 비바람에도 센터 불이 꺼지지 않았어요.", "비상 발전기가 있으니 동네가 든든해요."]],
+	],
+	"nurse": [
+		["clinic_wheelchairs", ["새 휠체어는 바퀴가 부드러워서 밀기 편해요.", "어르신들도 진료실까지 편하게 오세요."]],
+		["clinic_thermometers", ["체온계가 정확해서 접수가 빨라졌어요.", "열감기 철에도 대기 줄이 짧아요."]],
+	],
+	"grandma": [
+		["nursing_beds", ["새 침대 등받이가 올라가니 허리가 편해요.", "요즘은 밤에 푹 잔답니다. 고마워요."]],
+		["nursing_mats", ["복도 매트가 폭신해서 걸음이 가벼워요.", "넘어질 걱정이 없으니 산책도 자주 나가요."]],
+	],
+	"caregiver": [
+		["nursing_beds", ["전동 침대 덕분에 어르신 자세 바꿔 드리기 쉬워요.", "저희 허리도 한결 덜 아파요."]],
+		["nursing_mats", ["욕실 앞 매트 덕분에 미끄러지는 일이 없어요.", "작은 물건 하나가 안전을 지키네요."]],
+	],
+	"police": [
+		["police_cones", ["새 고깔은 반사띠가 밝아서 밤에도 잘 보여요.", "통학로 교통 정리가 훨씬 수월해요."]],
+		["police_vests", ["새 방검복은 가볍고 튼튼해서 순찰이 편해요.", "든든한 장비 덕분에 자신 있게 출동해요."]],
+	],
+	"firefighter": [
+		["fire_suits", ["새 방화복이 열기를 잘 막아 줘요.", "현장에서 마음 놓고 움직일 수 있어요."]],
+		["fire_breathing", ["공기호흡기는 매일 점검해도 이상이 없어요.", "연기 속에서도 숨쉬기가 편해서 든든해요."]],
+	],
+	"doctor": [
+		["hospital_beds", ["병동 침대 잠금장치가 단단해서 안심이에요.", "환자분들 낙상 걱정이 줄었어요."]],
+		["hospital_monitors", ["감시 장치가 생명 신호를 놓치지 않아요.", "중환자실 의료진 모두 고마워하고 있어요."]],
+	],
+}
+
+## After the 15th report (_play_ending, flag story_ending_done).
+const ENDING_STORY := {
+	"open": ["%s 씨, 가장 까다로웠던 중환자실 장비까지 훌륭히 마쳤네요.", "첫 출근 날, 조달청이 무슨 일을 하는지 이야기했던 거 기억나요?"],
+	"question": "수습 기간 동안 현장을 뛰어 보니, 좋은 조달이란 무엇인 것 같아요?",
+	"options": [
+		"세금을 아끼면서도 믿고 쓸 물건을 고르는 일이에요",
+		"엄격한 기준과 검사로 시민의 안전을 지키는 일이에요",
+		"보이지 않는 곳에서 한빛동의 하루를 잇는 일이에요",
+	],
+	"answers": [
+		["맞아요. 가격과 품질의 균형을 잡는 게 공공 구매의 기본이죠.", "%s 씨가 아낀 예산과 지킨 기준이 모두 시민께 돌아갔어요."],
+		["정확해요. 타협 없는 검수가 현장의 안전을 만들어 주죠.", "%s 씨 덕분에 대원들과 환자분들이 오늘도 안심할 수 있었어요."],
+		["그 마음을 깨달았다니 이제 더 가르쳐 줄 게 없겠네요.", "우리 일은 티가 잘 안 나지만 멈추면 안 되는 소중한 연결이죠."],
+	],
+	"narumi": ["새 책상에 앉은 아이들과 전동 침대에서 편히 쉬시는 어르신들,", "검증된 장비를 믿고 달리는 소방관과 경찰관, 병원 의료진까지요."],
+	"dari": ["한빛동 일곱 기관 곳곳에 %s 씨의 발걸음이 반짝이고 있어요!", "옆에서 함께 달리면서 저도 정말 자랑스러웠어요!"],
+	"close": ["'좋은 제품을 보다 싸고, 빠르고, 바르게'라는 우리 청훈은,", "결국 시민의 평범하고 안전한 하루를 지킨다는 약속이에요.", "수습 수료를 축하해요, %s 씨! 이제 어엿한 정식 담당자예요!"],
+	"popup": "수습 수료! 정식 담당자 임명",
+	"toast": "메인 스토리 완료! 앞으로 자유롭게 업무를 이어 가요.",
+}
 
 const VENDING_ITEMS := ["coffee", "energybar"]
 const TICKET_MEALS := ["gukbap", "set_meal", "curry"]  # ItemDB.MEALS, eaten on the spot
@@ -412,6 +658,58 @@ func is_urgent() -> bool:
 	return bool(GameState.task.get("urgent", false))
 
 
+## True while the 15 story tasks are not all reported (free mode after that).
+func story_mode() -> bool:
+	return GameState.tasks_completed < TaskData.STORY_TASK_IDS.size()
+
+
+## 1-5 = story chapters (3 tasks each), 6 = free mode.
+func story_chapter() -> int:
+	return clampi(floori(GameState.tasks_completed / float(DAILY_TASKS)) + 1, 1, 6)
+
+
+## STORY_EPISODES entry of the current task, or {} (free mode, no task, or an old
+## save whose task is not the story task for this point).
+func _episode() -> Dictionary:
+	if GameState.task.is_empty() or not story_mode():
+		return {}
+	var id := str(current_task().get("id", ""))
+	if id != str(TaskData.STORY_TASK_IDS[GameState.tasks_completed]):
+		return {}
+	return STORY_EPISODES.get(id, {}) as Dictionary
+
+
+## "%s" -> player name. replace(), not %, so a line without (or with two) "%s"
+## can never raise a format error.
+func _fmt(line: String) -> String:
+	return line.replace("%s", GameState.player_name)
+
+
+func _fmt_lines(lines: Array) -> Array:
+	var out: Array = []
+	for line: Variant in lines:
+		out.append(_fmt(str(line)))
+	return out
+
+
+## Says an episode line list (key) as npc_id. Nothing if the episode has no such key.
+func _episode_say(key: String, npc_id: String) -> void:
+	var ep := _episode()
+	if not ep.has(key):
+		return
+	await Dialogue.say(npc_name(npc_id), _fmt_lines(ep[key] as Array))
+
+
+## AMBIENT, or the AMBIENT_AFTER lines of the latest delivery that passed.
+func _ambient_lines(id: String) -> Array:
+	var after: Array = AMBIENT_AFTER.get(id, []) as Array
+	for i in range(after.size() - 1, -1, -1):
+		var entry: Array = after[i] as Array
+		if GameState.has_flag("done_" + str(entry[0])):
+			return _fmt_lines(entry[1] as Array)
+	return AMBIENT[id] as Array
+
+
 # ================================================================ entry points
 func talk(id: String) -> void:
 	if _busy:
@@ -430,7 +728,7 @@ func talk(id: String) -> void:
 			if receiver_place(id) != "":
 				await _talk_receiver(id)
 			elif AMBIENT.has(id):
-				await Dialogue.say(npc_name(id), AMBIENT[id])
+				await Dialogue.say(npc_name(id), _ambient_lines(id))
 			else:
 				await Dialogue.say(npc_name(id), ["..."])
 	_busy = false
@@ -576,6 +874,7 @@ func on_exit(from_map: String, to_map: String, spawn: String) -> void:
 		await SceneRouter.goto_map(to_map, spawn)
 		if GameState.has_flag("intro_done"):
 			Dialogue.toast("%d일차 출근! (%s)" % [GameState.day, GameState.clock_text()])
+			await _play_morning_brief()
 		return
 	if from_map == "office" and to_map == "home":
 		if not GameState.task.is_empty():
@@ -654,6 +953,7 @@ func play_home_intro() -> void:
 	await Dialogue.say("", [
 		"띠리리리! 알람이 울려요.",
 		"오늘은 조달청 첫 출근 날! %s 씨, 일어날 시간이에요." % GameState.player_name,
+		"공공기관 살림을 대신 챙기는 곳이라는데, 어떤 하루가 될까요?",
 	])
 	if GameState.is_touch_device():
 		await Dialogue.say("", ["[조작] 이동: 화면 왼쪽을 누르고 끌기 (끝까지 밀면 달리기)", "말 걸기·조사: A 버튼 / 스마트폰 메뉴: B 버튼 / 노란 버튼: 아이템", "아래쪽 메뉴 바에서 업무·가방·성장을 볼 수 있어요."])
@@ -682,14 +982,32 @@ func play_intro() -> void:
 	_busy = false
 
 
+## Chapter brief when arriving at the office in the morning (once per chapter).
+func _play_morning_brief() -> void:
+	var ch := story_chapter()
+	var flag := "story_morning_%d" % ch
+	var data: Dictionary = STORY_CHAPTERS.get(ch, {}) as Dictionary
+	if GameState.has_flag(flag) or not data.has("morning"):
+		return
+	while _busy or Dialogue.is_open or SceneRouter.busy:
+		await get_tree().process_frame
+	_busy = true
+	GameState.set_flag(flag)
+	await Dialogue.say(npc_name(str(data["morning_npc"])), _fmt_lines(data["morning"] as Array))
+	if data.has("extra"):
+		await Dialogue.say(npc_name(str(data["extra_npc"])), _fmt_lines(data["extra"] as Array))
+	_busy = false
+
+
 # ================================================================ conversations
 func _talk_team_leader() -> void:
 	var n := npc_name("team_leader")
 	if not GameState.has_flag("met_leader"):
 		await Dialogue.say(n, [
-			"%s 씨, 반가워요. 오늘부터 우리 팀이에요." % GameState.player_name,
-			"우리 조달청은 공공기관에 필요한 물건을 대신 사고 계약하는 일을 해요.",
-			"말로 듣는 것보다 해 보는 게 빠르죠. 첫 업무 바로 갑니다!",
+			"%s 씨, 반가워요. 오늘부터 한빛동 조달팀 식구예요." % GameState.player_name,
+			"학교나 소방서가 시민을 돌보는 일에만 집중할 수 있도록,",
+			"필요한 살림살이를 세금으로 꼼꼼히 대신 사 주는 곳이에요.",
+			"백 번 듣는 것보다 한 번 해 보는 게 빠르죠. 첫 업무 가 볼까요!",
 		])
 		GameState.set_flag("met_leader")
 	match step():
@@ -707,17 +1025,29 @@ func _talk_team_leader() -> void:
 
 
 func _assign_task() -> void:
-	var index := 0
-	if GameState.tasks_completed > 0:
-		# A different place each time, so every 수요기관 comes up (not mostly the school).
-		index = TaskData.pick_index(GameState.last_task_index, GameState.rng)
+	# Story (0-14 done): the fixed STORY_TASK_IDS order. Free mode: a different place
+	# each time, so every 수요기관 comes up (not mostly the school).
+	var story := story_mode()
+	var index := TaskData.next_task_index(GameState.tasks_completed, GameState.last_task_index, GameState.rng)
 	GameState.last_task_index = index
 	var t := TaskData.get_task(index)
-	var urgent := GameState.tasks_completed > 0 and GameState.rng.randf() < URGENT_CHANCE
-	var lines: Array = (t["brief"] as Array).duplicate()
-	if urgent:
-		lines.append("[긴급] 그리고 이건 급한 요청이에요! 보상이 1.5배예요.")
-	lines.append("납품처는 %s예요. 나라장터 PC에서 업체부터 골라 주세요." % place_name(str(t.get("destination", "school"))))
+	var task_id := str(t["id"])
+	var urgent := false
+	if story:
+		urgent = TaskData.is_story_urgent(task_id)
+	else:
+		urgent = GameState.rng.randf() < URGENT_CHANCE
+	var ep: Dictionary = STORY_EPISODES.get(task_id, {}) as Dictionary
+	var lines: Array = []
+	if story and ep.has("assign"):
+		lines = _fmt_lines(ep["assign"] as Array)
+		if urgent:
+			lines.append("[긴급] 급한 요청이라 보상이 1.5배예요!")
+	else:
+		lines = (t["brief"] as Array).duplicate()
+		if urgent:
+			lines.append("[긴급] 그리고 이건 급한 요청이에요! 보상이 1.5배예요.")
+		lines.append("납품처는 %s예요. 나라장터 PC에서 업체부터 골라 주세요." % place_name(str(t.get("destination", "school"))))
 	await Dialogue.say(npc_name("team_leader"), lines)
 	GameState.set_task({
 		"index": index, "step": Step.ACCEPTED, "vendor": -1, "cargo": 0, "grade": "",
@@ -741,6 +1071,10 @@ func _use_pc() -> void:
 			var d := GameState.rng.randi_range(0, vendors.size() - 1)
 			GameState.task["discount"] = d
 			await Dialogue.say("나라장터", ["[특가] %s 가격을 낮춰 다시 제안했어요!" % Korean.i_ga(str((vendors[d] as Dictionary)["name"]))])
+	var ep := _episode()
+	if ep.has("pc_guide") and not bool(GameState.task.get("pc_guided", false)):
+		GameState.task["pc_guided"] = true  # once, even if the window is closed with 나중에
+		await Dialogue.say(npc_name(str(ep.get("pc_npc", "narumi"))), _fmt_lines(ep["pc_guide"] as Array))
 	var pc := ProcurementPC.new()
 	get_tree().root.add_child(pc)
 	var c: int = await pc.run(_pc_screen(t))
@@ -782,6 +1116,7 @@ func _use_qc_station() -> void:
 			"흠집, 얼룩, 금, 빠진 부분이 있으면 불량이에요. 멀쩡한 물건을 고르면 오판이에요.",
 			"찾아낸 불량품은 업체가 새 제품으로 바꿔 줘서 납품 품질이 올라가요.",
 		])
+	await _episode_say("qc_guide", "inspector")
 	var defects := TaskData.qc_defects(base)
 	var qc := QcGame.new()
 	get_tree().root.add_child(qc)
@@ -880,6 +1215,9 @@ func _use_car() -> void:
 		warn = " (파손 주의!)"
 	var c: int = await Dialogue.choose("", "%s 납품하러 출발할까요?%s" % [Korean.ro(destination_name()), warn], ["출발!", "아직"])
 	if c == 0:
+		if _episode().has("car_guide") and not bool(GameState.task.get("car_guided", false)):
+			GameState.task["car_guided"] = true  # not again when driving back from the yard
+			await _episode_say("car_guide", "dari")
 		await _tip("car")
 		SceneRouter.goto(SceneRouter.DRIVE)
 
@@ -898,9 +1236,12 @@ func _talk_receiver(id: String) -> void:
 		var quality := delivered_quality()
 		var score := float(quality) * cargo / 100.0
 		var g := TaskData.grade(score, required)
+		var ep := _episode()
 		var reaction := str(info["good"])
-		if g == "보통":
-			reaction = "기준은 통과예요. 쓰는 데 문제없겠어요."
+		if g == "우수" and ep.has("pass_good"):
+			reaction = _fmt(str(ep["pass_good"]))
+		elif g == "보통":
+			reaction = _fmt(str(ep["pass_ok"])) if ep.has("pass_ok") else "기준은 통과예요. 쓰는 데 문제없겠어요."
 		elif g == "미흡":
 			reaction = "음... 기준에 못 미쳐요. 보완이 필요하겠어요."
 		var greet := "조달청에서 오셨군요! %s 맞죠?" % t["item"]
@@ -917,6 +1258,10 @@ func _talk_receiver(id: String) -> void:
 		GameState.set_task(GameState.task)
 		GameState.advance_clock(20)
 		GameState.popup.emit("검수 " + g, _grade_color(g))
+		if g != "미흡":
+			GameState.set_flag("done_" + str(t["id"]))  # AMBIENT_AFTER
+			if ep.has("citizen_after"):
+				await _episode_say("citizen_after", str(ep.get("citizen_id", "citizen")))
 		if GameState.tasks_completed > 0 and GameState.rng.randf() < REQUEST_CHANCE:
 			await _officer_request(n, info)
 		await _tip("inspection")
@@ -993,8 +1338,27 @@ func _report() -> void:
 		GameState.popup.emit("승진! " + GameState.rank_name(), UiTheme.COLOR_WARN)
 		await Dialogue.say(n, ["그리고... 축하해요! 오늘부로 %s 승진이에요! 일당도 올라요." % Korean.ro(GameState.rank_name())])
 	await _tip("report")
+	if GameState.tasks_completed == TaskData.STORY_TASK_IDS.size() and not GameState.has_flag("story_ending_done"):
+		await _play_ending()
 	GameState.save_game()
 	Dialogue.toast("자동 저장했어요.", UiTheme.COLOR_DIM)
+
+
+## 수습 수료 (after the 15th report). Free mode follows.
+func _play_ending() -> void:
+	GameState.set_flag("story_ending_done")
+	var leader := npc_name("team_leader")
+	await Dialogue.say(leader, _fmt_lines(ENDING_STORY["open"] as Array))
+	var options: Array = ENDING_STORY["options"] as Array
+	var c: int = await Dialogue.choose(leader, str(ENDING_STORY["question"]), options)
+	var answers: Array = ENDING_STORY["answers"] as Array
+	await Dialogue.say(leader, _fmt_lines(answers[clampi(c, 0, answers.size() - 1)] as Array))
+	await Dialogue.say(npc_name("narumi"), _fmt_lines(ENDING_STORY["narumi"] as Array))
+	await Dialogue.say(npc_name("dari"), _fmt_lines(ENDING_STORY["dari"] as Array))
+	Sound.play("star")
+	await Dialogue.say(leader, _fmt_lines(ENDING_STORY["close"] as Array))
+	GameState.popup.emit(str(ENDING_STORY["popup"]), UiTheme.COLOR_GOOD)
+	Dialogue.toast(str(ENDING_STORY["toast"]), UiTheme.COLOR_GOOD)
 
 
 func _talk_narumi() -> void:
@@ -1096,6 +1460,7 @@ func _go_home_evening(forced: bool) -> void:
 	GameState.day_over = true
 	GameState.minutes = maxi(GameState.minutes, GameState.WORK_END if not forced else GameState.minutes)
 	await SceneRouter.goto(SceneRouter.HOME, "door")
+	await _evening_monologue(forced)
 	var dl := GameState.day_log
 	var lines: Array = ["[%d일차 정산] %s 퇴근" % [GameState.day, GameState.clock_text()]]
 	if forced:
@@ -1109,7 +1474,21 @@ func _go_home_evening(forced: bool) -> void:
 	GameState.save_game()
 
 
-# ================================================================ menus
+## The player's own words at home before the summary: a rest note after a forced
+## leave, otherwise the diary of the latest fully completed chapter (once each).
+## A chapter whose last task fell on a forced-leave day is skipped, not replayed later.
+func _evening_monologue(forced: bool) -> void:
+	if forced:
+		await Dialogue.say(GameState.player_name, FORCED_REST_LINES)
+		return
+	var ch := mini(floori(GameState.tasks_completed / float(DAILY_TASKS)), 5)
+	var flag := "story_diary_%d" % ch
+	if ch < 1 or GameState.has_flag(flag):
+		return
+	GameState.set_flag(flag)
+	var data: Dictionary = STORY_CHAPTERS.get(ch, {}) as Dictionary
+	if data.has("diary"):
+		await Dialogue.say(GameState.player_name, _fmt_lines(data["diary"] as Array))
 func _task_info() -> void:
 	if GameState.task.is_empty():
 		await Dialogue.say("업무 정보", ["진행 중인 업무가 없어요. (오늘 %d/%d건)" % [GameState.tasks_done_today, DAILY_TASKS], objective_text()])
