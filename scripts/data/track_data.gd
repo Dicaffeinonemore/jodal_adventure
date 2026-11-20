@@ -1,54 +1,20 @@
 class_name TrackData
-## Delivery driving courses (RaceGame). Each course is an open road from the 청사 to
-## the destination building: "points" are smoothed into a Catmull-Rom curve (Curve2D).
-## The player has time_limit() seconds; the theme decides the scenery along the road.
-## Rules for new courses (tests/drive_bot.gd checks them):
-##   - neighbouring points 350-600 px apart, turns of 90 degrees or less are easy,
-##   - parts of the road that are not neighbours stay 260+ px apart (no overlaps),
-##   - length about 5000-6500 px (a race of about 25-30 seconds).
+## Delivery driving courses (RaceGame, 11/20 highway run). Each course is a straight
+## 5-lane road from the 청사 to the destination building: "length" in px (the finish
+## line is at -length), "theme" decides the scenery on both sides of the road.
+## A clean run cruises at about 230-270 px/s, so 7600-8800 px is a 30-35 second trip
+## (tests/drive_bot.gd drives every course).
 ## Each destination uses two courses (DESTINATION_TRACKS), picked at random.
 
 const TRACKS := [
-	{
-		"name": "한빛로 도심 대로", "theme": "city",
-		"points": [[0, 0], [0, -600], [150, -1000], [600, -1150], [1100, -1100], [1300, -800], [1700, -650],
-				[2100, -800], [2300, -1200], [2200, -1700], [1700, -1900], [1300, -2200], [1400, -2700]],
-	},
-	{
-		"name": "벚꽃 공원길", "theme": "park",
-		"points": [[0, 0], [-300, -450], [-150, -900], [300, -1050], [700, -900], [1000, -1200], [900, -1650],
-				[450, -1800], [150, -2150], [350, -2600], [850, -2700], [1250, -2450]],
-	},
-	{
-		"name": "솔숲 언덕길", "theme": "forest",
-		"points": [[0, 0], [0, -700], [400, -950], [800, -800], [850, -400], [1250, -200], [1650, -400],
-				[1650, -900], [1350, -1300], [1600, -1700], [2100, -1700], [2300, -2200]],
-	},
-	{
-		"name": "강변 도로", "theme": "river",
-		"points": [[0, 0], [500, -200], [1000, -150], [1500, -400], [1700, -900], [1500, -1400], [1000, -1550],
-				[600, -1800], [700, -2300], [1200, -2500], [1800, -2400], [2200, -2700]],
-	},
-	{
-		"name": "바닷가 해안 도로", "theme": "coast",
-		"points": [[0, 0], [0, -500], [300, -900], [800, -1000], [1200, -1300], [1100, -1800], [600, -2000],
-				[200, -2400], [400, -2900], [900, -3000], [1400, -2800]],
-	},
-	{
-		"name": "논밭 시골 마을길", "theme": "village",
-		"points": [[0, 0], [600, -100], [900, -400], [500, -700], [100, -900], [150, -1350], [650, -1450],
-				[1050, -1700], [800, -2100], [300, -2250], [350, -2700], [900, -2800]],
-	},
-	{
-		"name": "전통시장 골목", "theme": "market",
-		"points": [[0, 0], [0, -500], [450, -550], [500, -1000], [950, -1050], [1000, -1500], [550, -1550],
-				[500, -2000], [950, -2100], [1450, -2050], [1500, -2550]],
-	},
-	{
-		"name": "신도시 아파트 단지", "theme": "newtown",
-		"points": [[0, 0], [-400, -400], [-400, -1000], [0, -1400], [600, -1450], [1100, -1150], [1150, -600],
-				[800, -300], [700, 200], [1200, 500], [1700, 300]],
-	},
+	{"name": "한빛로 도심 대로", "theme": "city", "length": 7600.0},
+	{"name": "벚꽃 공원길", "theme": "park", "length": 7600.0},
+	{"name": "솔숲 언덕길", "theme": "forest", "length": 8200.0},
+	{"name": "강변 도로", "theme": "river", "length": 8400.0},
+	{"name": "바닷가 해안 도로", "theme": "coast", "length": 8800.0},
+	{"name": "논밭 시골 마을길", "theme": "village", "length": 8200.0},
+	{"name": "전통시장 골목", "theme": "market", "length": 8000.0},
+	{"name": "신도시 아파트 단지", "theme": "newtown", "length": 8400.0},
 ]
 
 const DESTINATION_TRACKS := {
@@ -57,9 +23,9 @@ const DESTINATION_TRACKS := {
 }
 
 ## ground: off-road color, road / edge: asphalt and curb, sidewalk: a paved strip along
-## the road (towns), band: a river or the sea following one side of the road,
+## the road (towns), band: a river or the sea along the left side of the road,
 ## density: decor tries per spot (forests are thick), sea: the band is the wide sea with a beach, fence: wooden fences along the road (countryside), decor: [kind, weight] picked for
-## each spot beside the road (see RaceGame.TrackView._decor), colors: their tints.
+## each spot beside the road (see RaceGame.Decor), colors: their tints.
 const THEMES := {
 	"city": {"ground": Color("b4afa4"), "road": Color("4f5160"), "edge": Color("f0f0f0"), "sidewalk": Color("d8d2c4"),
 			"decor": [["tower", 5], ["lamp", 3], ["street_tree", 2]],
@@ -88,21 +54,12 @@ const THEMES := {
 }
 
 ## Easier trips (11/18 playtest: the school run felt hard for a first delivery):
-## fewer cars and barricades and more time. RaceGame reads easy_for().
-const EASY := {"school": {"traffic": 4, "barricades": 3, "extra_time": 8.0}}
-
-## Seconds to reach the building: plenty of slack over a clean run at cruising speed
-## (11/17: raised from 1/175 + 4 s, a clean run takes about 20-25 s).
-const SECONDS_PER_PX := 1.0 / 150.0
-const TIME_SLACK := 10.0
+## traffic: seconds between rows x this, barricades: count, fuel_rate: per second.
+const EASY := {"school": {"traffic": 1.5, "barricades": 4, "fuel_rate": 4.0}}
 
 
 static func count() -> int:
 	return TRACKS.size()
-
-
-static func time_limit(length: float) -> float:
-	return ceilf(length * SECONDS_PER_PX + TIME_SLACK)
 
 
 ## {} for a normal trip, else EASY's settings for the destination.
@@ -113,17 +70,3 @@ static func easy_for(place: String) -> Dictionary:
 static func for_destination(place: String, rng: RandomNumberGenerator) -> int:
 	var options: Array = DESTINATION_TRACKS.get(place, [0])
 	return int(options[rng.randi() % options.size()])
-
-
-## The smoothed road (Catmull-Rom through the points).
-static func build_curve(index: int) -> Curve2D:
-	var pts: Array = (TRACKS[index] as Dictionary)["points"]
-	var c := Curve2D.new()
-	c.bake_interval = 8.0
-	for i in pts.size():
-		var p := Vector2(float(pts[i][0]), float(pts[i][1]))
-		var prev := Vector2(float(pts[maxi(i - 1, 0)][0]), float(pts[maxi(i - 1, 0)][1]))
-		var next := Vector2(float(pts[mini(i + 1, pts.size() - 1)][0]), float(pts[mini(i + 1, pts.size() - 1)][1]))
-		var handle := (next - prev) * 0.2
-		c.add_point(p, -handle, handle)
-	return c

@@ -57,7 +57,7 @@ godot --headless --path . --fixed-fps 60 --script res://tests/smoke_loop.gd
 #      소리를 바꾼 뒤: python tools/gen_audio.py -> 1) -> 2-2)
 godot --headless --path . --script res://tests/audio_check.gd
 
-# 2-3) 납품 운전 코스 확인 (자동 운전으로 8개 코스를 제한 시간 안·화물 60% 이상으로 도착, 입력 없으면 견인으로 끝남. 마지막 줄 DRIVE OK)
+# 2-3) 납품 운전 코스 확인 (자동 운전으로 8개 코스를 연료가 남은 채·화물 60% 이상으로 도착, 입력 없어도 도착이나 견인으로 끝남. 마지막 줄 DRIVE OK)
 godot --headless --path . --fixed-fps 60 --script res://tests/drive_bot.gd
 
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
@@ -113,7 +113,7 @@ scripts/systems/
   korean.gd              조사(을/를, 이/가, 로/으로...), 천 단위 쉼표
   sprite_util.gd         스프라이트 시트 -> SpriteFrames
 scripts/data/task_data.gd  업무(조달 요청) 데이터, 검수 등급(요구 품질 기준), 품질 검사 공식(qc_*), 시설 업그레이드
-scripts/data/track_data.gd 납품 운전 코스 8개(수요기관마다 2개, Catmull-Rom 곡선), 테마(도심·공원·숲·강변·해안·시골 마을·시장·신도시), 제한 시간
+scripts/data/track_data.gd 납품 운전 코스 8개(수요기관마다 2개, 직선 5차선 길이), 테마(도심·공원·숲·강변·해안·시골 마을·시장·신도시), 학교 쉬운 설정(EASY)
 scripts/world/
   map_base.gd            맵 공통: ASCII 레이아웃 -> 타일, NPC·오브젝트·간판(signs)·출구·플레이어·카메라·HUD·터치 UI 배치,
                          목표 화살표(Story.objective_target), HUD를 피하는 카메라, 작은 방은 2배 확대
@@ -141,11 +141,15 @@ scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_con
                          volume_window.gd(소리 설정 창: 배경음악·효과음 음량. 타이틀 [소리 설정]과 폰 [소리] 앱, Story.volume_settings())
                          title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물(간판·깃발에 픽셀 로고), 지붕 위 타이틀 간판
                          splash_screen.gd(메인 장면): 조달청 로고(assets/splash/pps_logo.png) -> Story.CREDIT("Made By 이승훈") -> 타이틀. 키·탭으로 넘김
-scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn): 조달청 -> 수요기관 건물까지 제한 시간 안에 도착(경주 아님).
-                                 자동 가속, ←→ 핸들, ↓ 감속(BRAKE_SPEED), Shift 드리프트(게이지 -> 부스터), Q 에너지 드링크 부스터. 장애물은 오가는 차·공사 울타리.
-                                 공정 규칙(11/18): 맞은편 차는 적고 느리며 멀리서 나오고 가까우면 "!", 추월 중인 플레이어와 마주치면 갓길로 비켜 감속,
-                                 울타리 앞에서는 플레이어가 지나갈 때까지 대기. 앞차는 울타리 구간을 서둘러 빠져나감. 울타리끼리 550px 이상.
-                                 일찍 도착하면 별 보너스, 늦으면 task.late(보고 때 평판 -4). 진행도는 현재 위치 근처만 찾는다.
+scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn, 11/20 고속도로식으로 개편): 위에서 내려다보는 5차선 직선 도로를
+                                 조달청 -> 수요기관 건물까지 달린다. 차선형 캐주얼 레이싱의 규칙만 참고(이름·그림·화면 구성은 자체 제작).
+                                 자동 가속, ←→ 한 칸씩 차선 변경, ↓ 감속(BRAKE_SPEED), ↑·Space 점프(차·울타리·기름 넘기, 차 지붕에 착지하면 한 번 더),
+                                 Q·Shift 터보(게이지 완충 또는 가방의 에너지 드링크: 잠깐 빠르고 무적, 앞차는 갓길로 비킴).
+                                 연속 추월 = 콤보(점수·터보 게이지), 앞차 바로 뒤에서 빠져나가며 추월 = 아슬아슬(2배), 앞차 뒤에 붙으면 슬립스트림.
+                                 연료는 계속 줄고 체크포인트 4곳·연료통이 채운다. 바닥나면 견인 = task.late(보고 때 평판 -4).
+                                 공정 규칙: 새 차 줄은 항상 2차선 이상 비움, 울타리 옆에는 차를 안 만들고 차가 울타리를 피해 감,
+                                 장애물은 화면에 들어오기 전 위쪽 가장자리에 "!", 앞차 차선 변경은 플레이어와 멀 때만 깜빡이 후.
+                                 결과: 화물 상태 -> 납품 품질, 별 = 주운 별 + 남은 연료·점수 보너스. 문구는 Story.DRIVE_TEXT.
                                  출발·도착 건물 그림은 assets bld_<id>.png(tools/gen_placeholders.py가 타이틀 마을에서 잘라 냄)
 scripts/minigames/qc_game.gd     품질 검사: 컨베이어 불량품 골라내기(흠집·얼룩·금·빠진 부분). 찾은 불량만큼 납품 품질 상승
 scenes/                  각 .tscn은 루트 노드 + 스크립트만 있다. 자식은 스크립트가 만든다.

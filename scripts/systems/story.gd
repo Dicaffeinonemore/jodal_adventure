@@ -29,7 +29,7 @@ const DAILY_TASKS := 3
 const DRIVE_FATIGUE := 20
 const SELECT_FATIGUE := 8
 const QC_FATIGUE := 5
-const LATE_REPUTATION := 4  # delivered after the driving time limit
+const LATE_REPUTATION := 4  # ran out of fuel on the drive (towed in late)
 const RETURN_FATIGUE := 7
 const HELP_FATIGUE := 8
 const URGENT_CHANCE := 0.25
@@ -211,6 +211,32 @@ const DASHCAM_QUIZ := [
 	["도로에 공사 울타리가 보여요. 어떻게 할까요?", ["속도를 줄이고 비켜 간다", "경적을 울리며 지나간다", "울타리를 밀고 간다"], 0,
 			"정답! 공사 구간에서는 천천히, 미리 차선을 바꿔요."],
 ]
+
+## 납품 운전 (RaceGame, 11/20 고속도로 개편) 화면 문구.
+const DRIVE_TEXT := {
+	"heading": "%s 납품 중", "course": "코스: %s", "urgent": "긴급", "fragile": "파손 주의",
+	"fuel": "연료", "cargo": "화물 상태 %d%%", "speed": "%d km/h",
+	"combo": "%d 콤보!", "turbo_gauge": "터보 게이지", "turbo_ready": "터보 준비! (Q)", "turbo_ready_touch": "터보 준비!",
+	"bag": "가방 에너지 드링크 %d",
+	"hint": "← → 차선 변경 / ↑·Space 점프 / Q 터보 / ↓ 감속 (가속은 자동)",
+	"hint_touch": "◀ ▶ 차선 변경 / 점프 / 터보 / 감속 버튼 (가속은 자동)",
+	"btn_left": "◀", "btn_right": "▶", "btn_jump": "점프", "btn_turbo": "터보", "btn_brake": "감속",
+	"keys": ["왼쪽", "오른쪽", "점프", "터보"],
+	"go": "출발!", "gate": "체크포인트 %d", "finish_gate": "도착",
+	"start_board": "출발: %s", "end_board": "도착: %s", "pps": "조달청",
+	"pass": "추월 +%d", "combo_pass": "%d 콤보 +%d", "chacha": "아슬아슬! ", "slip": "슬립스트림!",
+	"stomp": "사뿐! 지붕 점프 +%d", "shove": "비켜 주세요! +%d",
+	"crash_car": "쿵! 다른 차에 부딪혔어요 (화물 -%d)", "crash_barricade": "쿵! 공사 울타리에 부딪혔어요 (화물 -%d)",
+	"oil": "미끌! 기름 웅덩이예요",
+	"star": "+%d원", "fuel_can": "연료 +%d", "drink": "터보 게이지 +%d", "toolbox": "화물 상태 +%d",
+	"checkpoint": "체크포인트 %d/%d 통과! 연료 +%d",
+	"fuel_low": "연료가 얼마 안 남았어요! 체크포인트나 연료통을 찾아요", "fuel_out": "연료가 떨어졌어요...",
+	"turbo": "터보! 잠깐 동안 무적이에요", "turbo_full": "터보 준비!",
+	"turbo_empty": "터보 게이지가 아직이에요. 차를 연달아 추월해서 채워요!",
+	"drowsy": "졸음! 차선이 흔들려요",
+	"arrive": "도착! 화물 상태 %d%%", "towed": "연료가 떨어져 견인차가 데려다줬어요... (납품 지연)",
+	"result_score": "점수 %s · 최고 %d콤보", "result_bonus": "보너스 별 +%d",
+}
 
 # ================================================================ 수습 스토리 (11/19)
 # Story progress is GameState.tasks_completed (not the day, which drifts after a
@@ -917,20 +943,23 @@ func on_map_ready(map: String) -> void:
 				Dialogue.toast("%s에 도착! %s께 가요." % [destination_name(), (DESTINATIONS[map] as Dictionary)["where"]])
 
 
-## Guide popup before a drive: the first drive of the game and every school run
-## (11/18 playtest: players pressed ↑ ↓). {} = no popup.
+## Guide popup before a drive: the first drive of the game (after the 11/20 highway
+## rebuild) and every school run. {} = no popup.
 func drive_guide() -> Dictionary:
 	var place := destination_id()
-	if place != "school" and GameState.has_flag("drive_guide"):
+	if place != "school" and GameState.has_flag("drive_guide2"):
 		return {}
-	GameState.set_flag("drive_guide")
+	GameState.set_flag("drive_guide2")
 	var lines: Array = []
 	if GameState.is_touch_device():
-		lines = ["◀ ▶ 버튼만 이용하세요!", "가속은 자동이라 핸들만 꺾으면 돼요."]
+		lines = ["◀ ▶ 버튼으로 차선을 바꿔요!", "가속은 자동이에요. 차를 연달아 추월하면 콤보, 바로 뒤에 붙으면 슬립스트림!",
+				"[점프]로 차와 공사 울타리를 넘고, 터보 게이지가 차면 [터보]로 잠깐 무적!"]
 	else:
-		lines = ["좌우 화살표(← →)만 이용하세요!", "가속은 자동이라 ↑ ↓ 화살표는 누르지 않아도 돼요."]
+		lines = ["← → 화살표로 차선을 바꿔요!", "가속은 자동이에요. 차를 연달아 추월하면 콤보, 바로 뒤에 붙으면 슬립스트림!",
+				"↑(Space)로 차와 공사 울타리를 넘고, 터보 게이지가 차면 Q로 잠깐 무적!"]
+	lines.append("연료가 계속 줄어요. 체크포인트를 지나거나 연료통을 먹으면 채워져요.")
 	if place == "school":
-		lines.append("학교 가는 길은 차와 공사 구간이 적고 시간도 넉넉해요.")
+		lines.append("학교 가는 길은 차와 공사 구간이 적고 연료도 천천히 줄어요.")
 	return {"title": "운전 안내", "lines": lines, "btn": "알겠어요!"}
 
 
@@ -1442,7 +1471,7 @@ func _use_fridge() -> void:
 	GameState.fridge_day = GameState.day
 	GameState.add_item("energybar")
 	GameState.popup.emit("에너지 드링크 +1", UiTheme.COLOR_GOOD)
-	await Dialogue.say("", ["냉장고에서 에너지 드링크를 챙겼어요!", "운전 중에 Q(부스터 버튼)로 마시면 부스터가 돼요."])
+	await Dialogue.say("", ["냉장고에서 에너지 드링크를 챙겼어요!", "운전 중에 Q(터보 버튼)로 마시면 바로 터보가 돼요."])
 
 
 func _use_cooler() -> void:

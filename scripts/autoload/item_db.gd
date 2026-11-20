@@ -30,7 +30,7 @@ const ITEMS := {
 	},
 	"energybar": {
 		"name": "에너지 드링크", "price": 2000, "fatigue": 10, "icon": "item_energybar.png",
-		"desc": "운전 중 Q로 마시면 부스터!",
+		"desc": "운전 중 Q로 마시면 터보!",
 		"coffee": false, "meal_bonus": false, "drive": true, "tier": "P1",
 	},
 }
