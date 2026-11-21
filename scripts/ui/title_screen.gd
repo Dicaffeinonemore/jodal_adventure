@@ -2,24 +2,20 @@ extends Control
 ## Title: "화면을 터치해서 출근하기". The first tap/key is also the user gesture the
 ## browser needs before it allows fullscreen and audio, so the music starts here.
 
-## The town at 2x (assets title_town.png, 320x180): destinations on both sides and the
-## 조달청 in the middle (its sign and flag carry the pixel logo, drawn into the image),
-## with the title as a banner on its roof. Clouds and a delivery
-## truck move; the cast stands at the entrance. Image coordinates go through _stage.
+## Background: one illustration (assets/title/opening.png, 1672x941) with the title and
+## "Press Start" drawn in: 나르미, the rookie and 달이 in front of the 조달청. It is shown
+## whole (at most MAX_CROP cut off); a blurred copy (opening_blur.png) fills any spare
+## space on screens that are not 16:9. Prompt and buttons sit in the empty bottom-right.
 
-const SPRITES := "res://assets/sprites/placeholder/"
-const TOWN := Vector2(320, 180)
-const ROOF_Y := 58.0
+const ART := "res://assets/title/"
+const MAX_CROP := 1.05
 
 var _prompt: Label
 var _buttons: VBoxContainer
 var _started := false
 var _t := 0.0
-var _cast: Array[AnimatedSprite2D] = []
-var _stage: Node2D
-var _clouds: Array[Sprite2D] = []
-var _truck: Sprite2D
-var _banner: VBoxContainer
+var _blur: Sprite2D
+var _art: Sprite2D
 var _sound_btn: Button
 
 
@@ -28,78 +24,27 @@ func _ready() -> void:
 	UiTheme.apply(self)
 	if Sound.unlocked:  # back from the game: the browser already allows audio
 		Sound.play_bgm("home")
-	var sky := ColorRect.new()
-	sky.color = Color("78bef8")
-	sky.set_anchors_preset(Control.PRESET_FULL_RECT)
-	sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(sky)
+	_blur = _picture("opening_blur.png", CanvasItem.TEXTURE_FILTER_LINEAR)
+	_art = _picture("opening.png", CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS)  # painted art, not a pixel grid
 
-	_stage = Node2D.new()
-	add_child(_stage)
-	for i in 4:
-		var c := Sprite2D.new()
-		c.texture = load(SPRITES + "cloud.png") as Texture2D
-		c.centered = false
-		c.position = Vector2(i * 90.0 + 10.0, 8.0 + (i % 2) * 14.0)
-		_stage.add_child(c)
-		_clouds.append(c)
-	var town := Sprite2D.new()
-	town.texture = load(SPRITES + "title_town.png") as Texture2D
-	town.centered = false
-	_stage.add_child(town)
-	_truck = Sprite2D.new()
-	_truck.texture = load(SPRITES + "car_player.png") as Texture2D
-	_truck.rotation = PI / 2.0
-	_truck.position = Vector2(-20, 160)
-	_stage.add_child(_truck)
-	for i in 3:  # the cast at the entrance
-		var id: String = ["narumi", "team_leader", "dari"][i]
-		var a := AnimatedSprite2D.new()
-		a.sprite_frames = SpriteUtil.idle_frames(load(Story.npc_sprite(id)) as Texture2D)
-		a.offset = CharacterVisual.FEET_OFFSET
-		a.position = Vector2(140 + i * 20, 150)
-		a.play("idle")
-		a.frame = i % 2
-		_stage.add_child(a)
-		_cast.append(a)
-
-
-	# title banner on the roof
-	_banner = VBoxContainer.new()
-	_banner.add_theme_constant_override("separation", 0)
-	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_banner)
 	var sub := UiTheme.make_label("2026 조달청 AI 게임·콘텐츠 공모전", UiTheme.SIZE_SMALL, Color("fbf3dc"))
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_color_override("font_outline_color", Color("261e2c"))
 	sub.add_theme_constant_override("outline_size", 4)
-	_banner.add_child(sub)
-	var board := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color("fbf3dc")
-	sb.border_color = Color("261e2c")
-	sb.set_border_width_all(3)
-	sb.set_corner_radius_all(8)
-	sb.content_margin_left = 16
-	sb.content_margin_right = 16
-	sb.content_margin_top = 4
-	sb.content_margin_bottom = 6
-	sb.shadow_color = Color(0, 0, 0, 0.3)
-	sb.shadow_offset = Vector2(0, 3)
-	sb.shadow_size = 1
-	board.add_theme_stylebox_override("panel", sb)
-	_banner.add_child(board)
-	var title := UiTheme.make_label("출근! 조달청 신입", UiTheme.SIZE_LARGE, Color("23489a"), true)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	board.add_child(title)
+	sub.anchor_top = 1.0
+	sub.anchor_bottom = 1.0
+	sub.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	sub.offset_left = UiTheme.edge_margin() + 4.0
+	sub.offset_bottom = -6
+	add_child(sub)
 
 	var bottom := VBoxContainer.new()
-	bottom.anchor_left = 0.5
-	bottom.anchor_right = 0.5
+	bottom.anchor_left = 1.0
+	bottom.anchor_right = 1.0
 	bottom.anchor_top = 1.0
 	bottom.anchor_bottom = 1.0
+	bottom.offset_right = -UiTheme.edge_margin() - 4.0
 	bottom.offset_bottom = -10
-	bottom.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	bottom.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	bottom.alignment = BoxContainer.ALIGNMENT_END
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -124,30 +69,33 @@ func _ready() -> void:
 	_layout()
 
 
-## Covers the screen with the town (scale >= 2) and lines the labels up with it.
+func _picture(file: String, filter: CanvasItem.TextureFilter) -> Sprite2D:
+	var s := Sprite2D.new()
+	s.texture = load(ART + file) as Texture2D
+	s.centered = false
+	s.texture_filter = filter
+	add_child(s)
+	return s
+
+
+## The illustration as large as possible with at most MAX_CROP cut off (more from the
+## right and bottom: the title is top-left); the blurred copy covers the screen.
 func _layout() -> void:
 	var view := get_viewport_rect().size
-	var s := maxf(view.x / TOWN.x, view.y / TOWN.y)
-	_stage.scale = Vector2(s, s)
-	_stage.position = ((view - TOWN * s) / 2.0).round()
-	_banner.reset_size()
-	_banner.position = (Vector2(_to_screen(Vector2(160, 0)).x, _to_screen(Vector2(0, ROOF_Y)).y) 			- Vector2(_banner.size.x / 2.0, _banner.size.y)).round()
-
-
-func _to_screen(p: Vector2) -> Vector2:
-	return _stage.position + p * _stage.scale
+	var art := _art.texture.get_size()
+	var s := minf(maxf(view.x / art.x, view.y / art.y), minf(view.x / art.x, view.y / art.y) * MAX_CROP)
+	_art.scale = Vector2(s, s)
+	var spare := view - art * s
+	_art.position = Vector2(spare.x * (0.5 if spare.x > 0.0 else 0.25),
+			spare.y * (0.5 if spare.y > 0.0 else 0.3)).round()
+	var bt := _blur.texture.get_size()
+	var bs := maxf(view.x / bt.x, view.y / bt.y)
+	_blur.scale = Vector2(bs, bs)
+	_blur.position = ((view - bt * bs) / 2.0).round()
 
 
 func _process(delta: float) -> void:
 	_t += delta
-	for i in _clouds.size():
-		var c := _clouds[i]
-		c.position.x += delta * (4.0 + i * 1.5)
-		if c.position.x > TOWN.x + 10.0:
-			c.position.x = -40.0
-	_truck.position.x += delta * 45.0
-	if _truck.position.x > TOWN.x + 30.0:
-		_truck.position.x = -30.0
 	if not _started:
 		_prompt.modulate.a = 0.35 + 0.65 * absf(sin(_t * 2.5))
 

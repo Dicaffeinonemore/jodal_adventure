@@ -144,7 +144,8 @@ scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_con
                          그림은 미니게임의 paint_tutorial(RaceGame·QcGame). 그림 안 텍스처는 TutorialPages.tex()로 불러 살아 있게 둔다)
                          phone_menu.gd(Esc 메뉴 = 스마트폰 홈 화면: 시계·체력 배터리·앱 6개(phone_apps.png)·오늘 할 일 알림)
                          volume_window.gd(소리 설정 창: 배경음악·효과음 음량. 타이틀 [소리 설정]과 폰 [소리] 앱, Story.volume_settings())
-                         title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물(간판·깃발에 픽셀 로고), 지붕 위 타이틀 간판
+                         title_screen.gd(11/21): 오프닝 그림 한 장(assets/title/opening.png, 제목·Press Start 포함)을 통째로 보여 줌(최대 5%만 잘림),
+                         16:9가 아닌 화면의 남는 곳은 흐린 사본(opening_blur.png). 안내 문구·버튼은 오른쪽 아래. title_town.png는 운전 건물 그림 원본으로만 남음
                          splash_screen.gd(메인 장면): 조달청 로고(assets/splash/pps_logo.png) -> Story.CREDIT("Made By 이승훈") -> 타이틀. 키·탭으로 넘김
 scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn, 11/20 고속도로식으로 개편): 위에서 내려다보는 5차선 직선 도로를
                                  조달청 -> 수요기관 건물까지 달린다. 차선형 캐주얼 레이싱의 규칙만 참고(이름·그림·화면 구성은 자체 제작).
