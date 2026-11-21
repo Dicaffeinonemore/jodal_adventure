@@ -61,6 +61,12 @@ godot --headless --path . --script res://tests/audio_check.gd
 # 2-3) 납품 운전 코스 확인 (자동 운전으로 8개 코스를 연료가 남은 채·화물 60% 이상으로 도착, 입력 없어도 도착이나 견인으로 끝남. 마지막 줄 DRIVE OK)
 godot --headless --path . --fixed-fps 60 --script res://tests/drive_bot.gd
 
+# 2-4) 1분 시연영상(트레일러): tests/trailer_rec.gd를 Movie Maker로 1920x1080·30fps 녹화(배경음악 끄고 효과음만) ->
+#      구간(markers.txt)을 잘라 붙이고 게임 배경음악을 깔아 build/jodal_rookie_trailer.mp4 (H.264+AAC, 약 65초).
+#      ffmpeg 필요(FFMPEG 환경변수, PATH, 또는 pip install imageio-ffmpeg). 녹화 중에만 루트에 override.cfg가 생긴다.
+#      편집만 다시: --edit-only. 자막·장면 순서는 tests/trailer_rec.gd에서 고친다.
+python tools/make_trailer.py
+
 # 3) 웹 내보내기 (에디터에서 Web 내보내기 템플릿을 먼저 설치)
 mkdir -p build/web && godot --headless --path . --export-release "Web" build/web/index.html
 
