@@ -106,7 +106,8 @@ scripts/autoload/        전역 싱글톤 (project.godot의 순서대로 로드)
   game_state.gd          저장되는 모든 상태, 피로도/컨디션, 인벤토리, 저장/불러오기(user://save.json)
   item_db.gd             아이템·구내식당 메뉴(MEALS) 정의와 효과 적용
   scene_router.gd        페이드 장면 전환, next_spawn
-  dialogue.gd            대화창 say()/choose()/toast() (크림색 말풍선), 전체 화면 창 플래그 set_overlay()
+  dialogue.gd            대화창 say()/choose()/toast() (크림색 말풍선), 전체 화면 창 플래그 set_overlay().
+                         say(이름, 줄들, 그림들)의 세 번째 인자를 주면 줄마다 화면 가운데 그림 창(제목 + 그림, 배경 어둡게)을 띄운다
   sound.gd (마지막)      배경음악 play_bgm()(맵별 MAP_BGM, 크로스페이드)·효과음 play(), 음량(배경음악·효과음 0~10, user://settings.json).
                          버튼은 자동으로 confirm 소리(meta "sfx_off"면 제외), 보상 팝업은 글자·색으로 소리를 고른다
 scripts/systems/
@@ -164,6 +165,8 @@ assets/fonts/            레벨업 폰트 Regular·Bold (OFL)
 assets/sprites/placeholder/  도트 (tools/gen_placeholders.py로 생성). 나르미·달이는 공식 마스코트 그림(tools/ref/mascots.png)을 보고 그린 픽셀 격자(NARUMI·DARI),
                          조달청 로고는 tools/ref/pps_logo.jpg를 픽셀화(make_logo, 타이틀 간판·깃발, 출입증 pps_logo.png)
 assets/splash/           스플래시용 조달청 로고 원본(축소본)
+assets/tips/             조달 상식 그림 12장(사용자 제작 AI 그림, 1024px, 손실 WebP + 밉맵 임포트). 원본에서 다시 만들기: python tools/import_tip_images.py <원본 폴더>.
+                         id -> 제목은 Story.TIP_PICTURES, 상식별 그림은 POLICY_TIP_PICTURES(줄마다)·GENERAL_TIPS([문장, id]), Story.tip_picture(id)
 assets/audio/            임시 칩튠 BGM 3곡(bgm_home·town·drive, 루프)·효과음 21종 (tools/gen_audio.py로 합성, QOA 압축 임포트)
 tests/smoke_loop.gd      헤드리스 코어 루프 테스트 (웹 내보내기에서 제외)
 tests/audio_check.gd     소리 파일 임포트 확인 (BGM 루프, 효과음 존재)

@@ -183,20 +183,53 @@ const POLICY_TIPS := {
 	"place_police": ["국가 계약에서 물품 납품이 늦어지면 업체는 하루에 계약금액의 0.075%를 지체상금으로 물어요."],
 	"place_hospital": ["조달청은 중소기업과 혁신 기업의 제품이 공공시장에 진출하도록 돕는 일도 해요."],
 }
+## 조달 상식 그림 (assets/tips/<id>.png, tools/import_tip_images.py): id -> keyword shown
+## as the picture window title. Dialogue.say shows the picture above the dialogue box.
+const TIP_PICTURES := {
+	"contract_deposit": "계약보증금",
+	"urgent_bid": "긴급입찰",
+	"narajangteo": "나라장터 전자조달시스템",
+	"mascots": "나르미와 달이",
+	"green_products": "녹색제품 구매",
+	"regional_offices": "대전 본청과 11개 지방조달청",
+	"qualification": "적격심사",
+	"motto": "조달청 청훈",
+	"history": "조달청의 역사",
+	"quality": "조달품질원과 조달품질신문고",
+	"stockpile": "주요 원자재 비축·방출",
+	"innovation": "혁신조달",
+}
+## Picture per line of POLICY_TIPS[key] ("" = no picture for that line).
+const POLICY_TIP_PICTURES := {
+	"vendor": ["narajangteo", "qualification"],
+	"inspection": ["quality"],
+	"report": ["qualification", "motto"],
+	"qc": ["quality", "quality"],
+	"urgent": ["urgent_bid"],
+	"place_fire": ["quality"],
+	"place_clinic": ["quality"],
+	"place_center": ["narajangteo"],
+	"place_nursing": ["green_products"],
+	"place_hospital": ["innovation"],
+}
+## [tip, TIP_PICTURES id or ""]. Notice board and Narumi pick one at random.
 const GENERAL_TIPS := [
-	"조달청은 공공기관이 필요한 물품과 서비스를 대신 구매하고 계약하는 기관이에요.",
-	"공공기관 입찰 정보는 '나라장터' 한곳에 모여서 누구나 볼 수 있어요.",
-	"조달청은 중소기업과 혁신 기업의 제품이 공공시장에 진출하도록 돕는 일도 해요.",
-	"조달청은 알루미늄 같은 주요 원자재를 비축했다가 필요할 때 방출해요.",
-	"친환경 제품 구매도 공공조달에서 중요하게 다루는 가치예요.",
-	"공공기관은 환경표지·저탄소·우수재활용 인증을 받은 녹색제품을 의무적으로 사야 해요.",
-	"조달청은 1949년 임시외자총국으로 시작해서 1961년에 조달청이 되었어요.",
-	"나라장터는 2002년에 문을 연 국가종합전자조달시스템이에요.",
-	"조달청 본청은 대전 정부대전청사에 있고, 전국에 지방조달청이 11곳 있어요.",
-	"조달청 청훈은 '좋은 제품을 보다 싸고, 빠르고, 바르게'예요.",
-	"국가 계약에서 업체는 보통 계약금액의 10% 이상을 계약보증금으로 내요. 약속을 지키겠다는 표시예요.",
-	"국가 계약에서 물품 납품이 늦어지면 업체는 하루에 계약금액의 0.075%를 지체상금으로 물어요.",
-	"나르미는 투명을 상징하는 황새, 달이는 영리하고 민첩한 다람쥐가 모티브예요.",
+	["조달청은 공공기관이 필요한 물품과 서비스를 대신 구매하고 계약하는 기관이에요.", ""],
+	["공공기관 입찰 정보는 '나라장터' 한곳에 모여서 누구나 볼 수 있어요.", "narajangteo"],
+	["조달청은 중소기업과 혁신 기업의 제품이 공공시장에 진출하도록 돕는 일도 해요.", "innovation"],
+	["조달청은 알루미늄 같은 주요 원자재를 비축했다가 필요할 때 방출해요.", "stockpile"],
+	["친환경 제품 구매도 공공조달에서 중요하게 다루는 가치예요.", "green_products"],
+	["공공기관은 환경표지·저탄소·우수재활용 인증을 받은 녹색제품을 의무적으로 사야 해요.", "green_products"],
+	["조달청은 1949년 임시외자총국으로 시작해서 1961년에 조달청이 되었어요.", "history"],
+	["나라장터는 2002년에 문을 연 국가종합전자조달시스템이에요.", "narajangteo"],
+	["조달청 본청은 대전 정부대전청사에 있고, 전국에 지방조달청이 11곳 있어요.", "regional_offices"],
+	["조달청 청훈은 '좋은 제품을 보다 싸고, 빠르고, 바르게'예요.", "motto"],
+	["국가 계약에서 업체는 보통 계약금액의 10% 이상을 계약보증금으로 내요. 약속을 지키겠다는 표시예요.", "contract_deposit"],
+	["국가 계약에서 물품 납품이 늦어지면 업체는 하루에 계약금액의 0.075%를 지체상금으로 물어요.", ""],
+	["나르미는 투명을 상징하는 황새, 달이는 영리하고 민첩한 다람쥐가 모티브예요.", "mascots"],
+	["재난처럼 급할 때는 입찰 공고 기간을 5일로 줄인 '긴급입찰'로 빠르게 계약하기도 해요.", "urgent_bid"],
+	["입찰에서는 가장 싼 업체부터 이행 능력을 따져서 낙찰해요. 이걸 '적격심사'라고 해요.", "qualification"],
+	["조달청 조달품질원이 조달물자의 품질을 관리하고, 납품된 물품의 하자는 '조달품질신문고'로 신고할 수 있어요.", "quality"],
 ]
 
 ## 원문철 변호사 (청사 주차장): 블랙박스 퀴즈. [question, options, correct index, explanation]
@@ -554,6 +587,7 @@ const INK_BAD := Color("c0392b")
 const INK_TEXT := Color("2e2636")
 
 var _busy := false
+var _last_general_tip := -1  # _random_general_tip()
 var _forced_pending := false
 
 
@@ -839,8 +873,8 @@ func interact_object(id: String) -> void:
 		"mirror":
 			await Dialogue.say("", ["거울 속 %s 씨, 오늘도 단정해요." % GameState.player_name])
 		"notice_board":
-			var tip: String = GENERAL_TIPS.pick_random()
-			await Dialogue.say("게시판", ["[조달 상식] " + tip])
+			var tip := _random_general_tip()
+			await Dialogue.say("게시판", ["[조달 상식] " + str(tip[0])], [tip_picture(str(tip[1]))])
 		"bed":
 			await _use_bed()
 		"wardrobe":
@@ -1461,11 +1495,14 @@ func _talk_narumi() -> void:
 	var n := npc_name("narumi")
 	var hint := objective_text().replace("목표: ", "")
 	var lines: Array = []
+	var pictures: Array = []
 	if hint != "":
 		lines.append("지금 할 일은 '%s'예요." % hint)
-	var tip: String = GENERAL_TIPS.pick_random()
-	lines.append("[조달 상식] " + tip)
-	await Dialogue.say(n, lines)
+		pictures.append({})
+	var tip := _random_general_tip()
+	lines.append("[조달 상식] " + str(tip[0]))
+	pictures.append(tip_picture(str(tip[1])))
+	await Dialogue.say(n, lines, pictures)
 
 
 ## 원문철 변호사: comments on the current delivery's cargo, then a dashcam quiz.
@@ -1776,4 +1813,23 @@ func _tip(key: String) -> void:
 	GameState.set_flag(flag)
 	var lines: Array = (POLICY_TIPS[key] as Array).duplicate()
 	lines[0] = "[조달 상식] " + str(lines[0])
-	await Dialogue.say(npc_name("narumi"), lines)
+	var pictures: Array = []
+	for id: Variant in POLICY_TIP_PICTURES.get(key, []):
+		pictures.append(tip_picture(str(id)))
+	await Dialogue.say(npc_name("narumi"), lines, pictures)
+
+
+## {"texture", "title"} for Dialogue.say's picture window, {} if id has no picture.
+func tip_picture(id: String) -> Dictionary:
+	if not TIP_PICTURES.has(id):
+		return {}
+	return {"texture": load("res://assets/tips/%s.png" % id), "title": str(TIP_PICTURES[id])}
+
+
+## A random GENERAL_TIPS entry, never the same one twice in a row.
+func _random_general_tip() -> Array:
+	var i := GameState.rng.randi_range(0, GENERAL_TIPS.size() - 1)
+	if i == _last_general_tip:
+		i = (i + 1) % GENERAL_TIPS.size()
+	_last_general_tip = i
+	return GENERAL_TIPS[i]

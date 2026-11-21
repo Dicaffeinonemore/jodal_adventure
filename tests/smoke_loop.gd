@@ -51,6 +51,20 @@ func _run() -> void:
 		seen[place] = true
 		last = next
 	_check(seen.size() == PLACES.size(), "task picker skipped places: %s" % [seen.keys()])
+
+	_step = "tip pictures"
+	var story := _a("Story")
+	for id: String in (story.get("TIP_PICTURES") as Dictionary):
+		_check(load("res://assets/tips/%s.png" % id) is Texture2D, "tip picture missing: " + id)
+	var policy: Dictionary = story.get("POLICY_TIPS")
+	var policy_pics: Dictionary = story.get("POLICY_TIP_PICTURES")
+	for key: String in policy_pics:
+		_check(policy.has(key) and (policy[key] as Array).size() == (policy_pics[key] as Array).size(),
+				"POLICY_TIP_PICTURES[%s] does not match POLICY_TIPS" % key)
+		for id: String in policy_pics[key]:
+			_check(id == "" or (story.get("TIP_PICTURES") as Dictionary).has(id), "unknown tip picture: " + id)
+	for tip: Array in story.get("GENERAL_TIPS"):
+		_check(str(tip[1]) == "" or (story.get("TIP_PICTURES") as Dictionary).has(str(tip[1])), "unknown tip picture: " + str(tip[1]))
 	# Loaded at run time: naming these classes here would compile them before the
 	# autoloads (GameState...) exist, and the test would not start at all.
 	load(RACE_SCRIPT).set("autopilot", true)  # the race drives itself (steering: tests/drive_bot.gd)

@@ -4,6 +4,9 @@ extends CanvasLayer
 ##     await Dialogue.say("나르미", ["첫 줄", "둘째 줄"])
 ##     var i: int = await Dialogue.choose("김 팀장", "어떻게 할까?", ["예", "아니요"])
 ##     Dialogue.toast("피로도 -15")
+##     await Dialogue.say("나르미", lines, [{"texture": tex, "title": "계약보증금"}, {}])
+## The optional third argument puts a picture window in the middle of the screen,
+## one entry per line ({} = no picture for that line). Used for 조달 상식 (Story._tip).
 ## Advance with the interact action (Space/Enter/Z, touch A) or by tapping the box.
 ## Look: a cream speech bubble with a dark outline and a dark name tag.
 ##
@@ -36,6 +39,11 @@ var _text: Label
 var _hint: Label
 var _choices: VBoxContainer
 var _toast_box: VBoxContainer
+var _pic_root: Control
+var _pic_frame: PanelContainer
+var _pic_title: Label
+var _pic_rect: TextureRect
+var _pic_tween: Tween
 
 var _typing := false
 var _blip_at := 0  # next character that makes a typing blip
@@ -135,6 +143,8 @@ func _ready() -> void:
 	_toast_box.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_root.add_child(_toast_box)
 
+	_build_picture()
+
 	_panel.hide()
 	_hint.hide()
 	_choices.hide()
@@ -155,11 +165,15 @@ func _process(delta: float) -> void:
 
 
 # ------------------------------------------------------------------ public API
-func say(speaker: String, lines: Array) -> void:
+func say(speaker: String, lines: Array, pictures: Array = []) -> void:
 	_open()
-	for line: Variant in lines:
+	for i in lines.size():
 		_set_speaker(speaker)
-		await _type(str(line))
+		var pic: Dictionary = {}
+		if i < pictures.size() and pictures[i] is Dictionary:
+			pic = pictures[i]
+		_show_picture(pic)
+		await _type(str(lines[i]))
 		_waiting = true
 		_blink = 0.0
 		await _advanced
@@ -243,8 +257,119 @@ func _close() -> void:
 	is_open = false
 	_panel.hide()
 	_hint.hide()
+	_hide_picture()
 	GameState.unlock_input()
 	closed.emit()
+
+
+# Picture window: dims the screen and shows a framed picture with a title bar,
+# centered in the space above the dialogue box. Sits under the box (same layer),
+# and a tap anywhere on it advances the dialogue like a tap on the box.
+func _build_picture() -> void:
+	_pic_root = Control.new()
+	_pic_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_pic_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_pic_root.gui_input.connect(_on_panel_input)
+	_root.add_child(_pic_root)
+	_root.move_child(_pic_root, 0)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pic_root.add_child(dim)
+
+	_pic_frame = PanelContainer.new()
+	_pic_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Centered on the free space above the box (box top = bottom - 86).
+	_pic_frame.anchor_left = 0.5
+	_pic_frame.anchor_right = 0.5
+	_pic_frame.anchor_top = 0.5
+	_pic_frame.anchor_bottom = 0.5
+	_pic_frame.offset_top = -43
+	_pic_frame.offset_bottom = -43
+	_pic_frame.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_pic_frame.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var box := StyleBoxFlat.new()
+	box.bg_color = INK
+	box.border_color = BUBBLE
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(6)
+	box.set_content_margin_all(4)
+	box.content_margin_top = 2
+	box.shadow_color = Color(0, 0, 0, 0.4)
+	box.shadow_offset = Vector2(0, 3)
+	box.shadow_size = 2
+	_pic_frame.add_theme_stylebox_override("panel", box)
+	_pic_root.add_child(_pic_frame)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 2)
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pic_frame.add_child(vb)
+	_pic_title = UiTheme.make_label("", UiTheme.SIZE, Color("ffd866"), true)
+	_pic_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(_pic_title)
+	_pic_rect = TextureRect.new()
+	_pic_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_pic_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	_pic_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS  # painted art, not a pixel grid
+	_pic_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(_pic_rect)
+	_root.resized.connect(_fit_picture)
+	_pic_root.hide()
+
+
+func _show_picture(pic: Dictionary) -> void:
+	var tex: Texture2D = pic.get("texture")
+	if tex == null:
+		_hide_picture()
+		return
+	var first := not _pic_root.visible
+	if not first and tex == _pic_rect.texture:
+		return
+	_pic_rect.texture = tex
+	_pic_title.text = str(pic.get("title", ""))
+	_pic_title.visible = _pic_title.text != ""
+	_fit_picture()
+	_pic_root.show()
+	if _pic_tween:
+		_pic_tween.kill()
+	_pic_tween = create_tween()
+	if first:
+		_pic_root.modulate.a = 0.0
+		_pic_frame.modulate.a = 1.0
+		_pic_tween.tween_property(_pic_root, "modulate:a", 1.0, 0.18)
+		Sound.play("pop")
+	else:
+		_pic_frame.modulate.a = 0.0
+		_pic_tween.tween_property(_pic_frame, "modulate:a", 1.0, 0.18)
+
+
+func _hide_picture() -> void:
+	if _pic_tween:
+		_pic_tween.kill()
+		_pic_tween = null
+	_pic_root.hide()
+	_pic_rect.texture = null
+
+
+## Largest size that keeps the picture's aspect, fits above the box with a margin
+## and leaves room for the title bar. Called again when the window is resized.
+func _fit_picture() -> void:
+	var tex := _pic_rect.texture
+	if tex == null:
+		return
+	var view := _root.size
+	var aspect := float(tex.get_width()) / float(maxi(tex.get_height(), 1))
+	var title_h := _pic_title.get_combined_minimum_size().y + 2.0 if _pic_title.visible else 0.0
+	var max_h := view.y - 86.0 - 14.0 - title_h - 10.0  # box, gaps, title, frame
+	var max_w := view.x - 48.0
+	var h := maxf(minf(max_h, max_w / aspect), 40.0)
+	_pic_rect.custom_minimum_size = Vector2(roundf(h * aspect), roundf(h))
+	var fs := _pic_frame.get_combined_minimum_size()
+	_pic_frame.offset_left = -roundf(fs.x / 2.0)
+	_pic_frame.offset_right = _pic_frame.offset_left + fs.x
+	_pic_frame.offset_top = -43.0 - roundf(fs.y / 2.0)
+	_pic_frame.offset_bottom = _pic_frame.offset_top + fs.y
 
 
 func _set_speaker(speaker: String) -> void:
