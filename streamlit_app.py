@@ -44,7 +44,8 @@ iframe {
 
 
 @st.cache_resource(show_spinner=False)
-def game_html() -> str:
+def game_html(build_mtime_ns: int) -> str:
+	# The bundle can change on redeploy while this Python process is still running.
 	return gzip.decompress(GAME.read_bytes()).decode("utf-8")
 
 
@@ -52,4 +53,4 @@ if not GAME.exists():
 	st.error("deploy/jodal_rookie.html.gz 가 없어요. tools/pack_streamlit.py 를 실행해 주세요.")
 	st.stop()
 
-components.html(game_html(), height=720, scrolling=False)
+components.html(game_html(GAME.stat().st_mtime_ns), height=720, scrolling=False)

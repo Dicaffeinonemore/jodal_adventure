@@ -10,7 +10,6 @@ extends Control
 
 const TitleArt := preload("res://scripts/ui/title_art.gd")
 const ART := "res://assets/title/"
-const MAX_CROP := 1.08  # cover the screen but crop at most 8%; blurred edges fill the rest
 const SHINE_SHADER := """
 shader_type canvas_item;
 uniform vec2 tex_size;
@@ -135,18 +134,13 @@ func _layer(file: String, pos: Vector2) -> Sprite2D:
 	return s
 
 
-## Covers the screen with the still, cropping at most MAX_CROP; a blurred copy fills
-## what is left. Crops come mostly off the bottom and right: the title is top-left.
+## Keep the entire illustration visible; the blurred backdrop fills any spare space.
 func _layout() -> void:
 	var view := get_viewport_rect().size
 	var art: Vector2 = TitleArt.SIZE
-	var cover := maxf(view.x / art.x, view.y / art.y)
-	var contain := minf(view.x / art.x, view.y / art.y)
-	var s := minf(cover, contain * MAX_CROP)
+	var s := minf(view.x / art.x, view.y / art.y)
 	_stage.scale = Vector2(s, s)
-	var spare := view - art * s
-	_stage.position = Vector2(spare.x * (0.5 if spare.x >= 0.0 else 0.15),
-			spare.y * (0.5 if spare.y >= 0.0 else 0.25)).round()
+	_stage.position = ((view - art * s) / 2.0).round()
 	var bt := _blur.texture.get_size()
 	var bs := maxf(view.x / bt.x, view.y / bt.y)
 	_blur.scale = Vector2(bs, bs)

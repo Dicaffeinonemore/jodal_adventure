@@ -14,9 +14,9 @@ const SHINE_SLOPE := 0.5
 const SHINE_TIME := 0.55
 ## file, feet (bottom centre), hop height, phase
 const CHARACTERS := [
-	{"file": "narumi", "foot": Vector2(390, 897), "amp": 10.0, "phase": 0.0},
-	{"file": "rookie", "foot": Vector2(725, 907), "amp": 8.0, "phase": 0.33},
-	{"file": "dari", "foot": Vector2(1027.5, 902), "amp": 14.0, "phase": 0.66},
+	{"file": "narumi", "foot": Vector2(385, 896), "amp": 10.0, "phase": 0.0},
+	{"file": "rookie", "foot": Vector2(723, 906), "amp": 8.0, "phase": 0.33},
+	{"file": "dari", "foot": Vector2(1027, 901), "amp": 14.0, "phase": 0.66},
 ]
 ## file, centre, index into CHARACTERS it cheers for
 const MARKS := [
@@ -30,4 +30,4 @@ const GLYPHS := [
 	{"file": "title_2", "pos": Vector2(702, 22)},
 ]
 const PRESS := {"file": "press", "pos": Vector2(28, 183)}
-const GLASS := {"file": "glass", "pos": Vector2(445, 70), "size": Vector2(1189, 574)}
+const GLASS := {"file": "glass", "pos": Vector2(494, 70), "size": Vector2(1137, 570)}

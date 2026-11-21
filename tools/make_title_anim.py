@@ -12,9 +12,9 @@ Godot cannot play GIFs, so the title screen (scripts/ui/title_screen.gd) plays t
 animation from the layers. The motion formulas live in both places: keep them in sync
 (animate() here, _process() there).
 
-Only numpy + Pillow. The still is AI-generated pixel-style art with thick dark outlines:
-characters are cut by flood-filling the background from the edge of their box (dark
-outline pixels are walls), text by "not sky blue". The background behind every moving
+Only numpy + Pillow. The indexed silhouette matte beside the source identifies the
+three bodies, leaving the paving shadows, shrubs and facade in the still. Text is
+selected by "not sky blue". The background behind every moving
 part is painted in from the surrounding pixels (onion-peel average); only thin bands of
 it ever show, at the edges of a part while it moves.
 """
@@ -26,6 +26,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "tools" / "ref" / "opening-screen.png"
+CHARACTER_MASK = SRC.with_name("title-character-mask.png")
 OUT = ROOT / "assets" / "title"
 GD = ROOT / "scripts" / "ui" / "title_art.gd"
 GIF = ROOT / "docs" / "title_anim.gif"
@@ -34,11 +35,11 @@ GIF = ROOT / "docs" / "title_anim.gif"
 PERIOD = 2.4  # seconds; every motion repeats exactly in this time (GIF loop)
 GIF_FRAMES = 24
 GIF_WIDTH = 960
-# name, box (x0, y0, x1, y1), a pixel inside the body, hop height px, phase 0..1
+# name, palette index in the silhouette matte, hop height px, phase 0..1
 CHARACTERS = [
-    ("narumi", (190, 330, 590, 905), (380, 650), 10.0, 0.0),
-    ("rookie", (575, 375, 875, 910), (720, 720), 8.0, 0.33),
-    ("dari", (850, 525, 1205, 905), (1010, 760), 14.0, 0.66),
+    ("narumi", 1, 10.0, 0.0),
+    ("rookie", 2, 8.0, 0.33),
+    ("dari", 3, 14.0, 0.66),
 ]
 SQUASH = 0.015  # landing squash (scale y 1 - SQUASH, x 1 + SQUASH)
 # "!" marks: box, character index they cheer for
@@ -78,15 +79,6 @@ def dilate(m, n):
 
 def erode(m, n):
     return ~dilate(~m, n)
-
-
-def flood(walls, seeds):
-    """Pixels reachable from seeds without crossing walls (4-connected)."""
-    im = Image.fromarray(np.where(walls, 255, 0).astype(np.uint8)).copy()  # copy: floodfill skips array-backed images
-    for s in seeds:
-        if im.getpixel(s) == 0:
-            ImageDraw.floodfill(im, s, 128)
-    return np.asarray(im) == 128
 
 
 def paint_in(rgb, mask):
@@ -143,18 +135,15 @@ def main() -> None:
 
     # ---- characters
     chars = []
-    for name, box, seed, amp, phase in CHARACTERS:
-        x0, y0, x1, y1 = box
-        walls = dilate(lum[y0:y1, x0:x1] < 85, 2)
-        walls = np.pad(walls, 1)
-        reached = flood(walls, [(0, 0)])[1:-1, 1:-1]
-        body = erode(~reached, 2)
-        body = np.pad(body, 1)
-        body = flood(~body, [(seed[0] - x0 + 1, seed[1] - y0 + 1)])[1:-1, 1:-1]
-        m = box_mask((H, W), box, body)
-        bx0, by0, bx1, by1 = save_layer(name, m)
+    with Image.open(CHARACTER_MASK) as mask_image:
+        if mask_image.mode != "P" or mask_image.size != src.size:
+            raise ValueError("Character mask must be indexed and match the source size")
+        matte = np.array(mask_image)
+    for name, index, amp, phase in CHARACTERS:
+        m = matte == index
+        bx0, by0, bx1, by1 = save_layer(name, m, feather=0)
         chars.append({"name": name, "foot": ((bx0 + bx1) / 2.0, float(by1)), "amp": amp, "phase": phase})
-        paint |= dilate(m, 3)
+        paint |= dilate(m, 1)
 
     # ---- "!" marks: yellow strokes and the dark outline hugging them
     marks = []
@@ -201,12 +190,9 @@ def main() -> None:
     # ---- window glass (alpha mask only; the shine is drawn on it)
     poly = Image.new("L", (W, H), 0)
     ImageDraw.Draw(poly).polygon(BUILDING, fill=255)
-    char_area = np.zeros((H, W), bool)
-    for name, _box, _s, _a, _p in CHARACTERS:
-        im, (ox, oy) = layers[name]
-        a = np.asarray(im)[..., 3] > 0
-        char_area[oy:oy + a.shape[0], ox:ox + a.shape[1]] |= a
-    glass = (np.asarray(poly) > 0) & (b > 150) & (b > r + 40) & ~dilate(char_area, 6)
+    char_area = matte != 0
+    # The stone posts are lavender in shadow. Only the cyan-blue glazing reflects.
+    glass = (np.asarray(poly) > 0) & (b > 150) & (b > r + 40) & (g > r + 28) & ~dilate(char_area, 6)
     lx0, ly0, lx1, ly1 = LOGO_BOX
     glass[ly0:ly1, lx0:lx1] = False
     glass = erode(dilate(glass, 1), 1)
@@ -240,14 +226,14 @@ def hop(t, phase):
 def animate(t):
     """Per-layer state at time t (seconds)."""
     state = {"chars": [], "glyph_y": [], "marks": []}
-    for i in range(len(CHARACTERS)):
-        h = hop(t, CHARACTERS[i][4])
+    for _name, _index, amp, phase in CHARACTERS:
+        h = hop(t, phase)
         squash = SQUASH * (1.0 - h) ** 4
-        state["chars"].append((-CHARACTERS[i][3] * h, 1.0 + squash, 1.0 - squash))
+        state["chars"].append((-amp * h, 1.0 + squash, 1.0 - squash))
     for k in range(64):
         state["glyph_y"].append(-TITLE_WAVE * math.sin(2.0 * math.pi * t / PERIOD - k * TITLE_STAGGER))
     for _box, owner in MARKS:
-        state["marks"].append(1.0 + 0.25 * hop(t, CHARACTERS[owner][4]))
+        state["marks"].append(1.0 + 0.25 * hop(t, CHARACTERS[owner][3]))
     state["press"] = (t % PRESS_CYCLE) < PRESS_ON
     state["shine"] = (t % PERIOD) / (PERIOD * SHINE_TIME)  # 0..1 while sweeping, >1 quiet
     return state
