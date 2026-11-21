@@ -6,9 +6,12 @@ extends Control
 ## "Press Start" drawn in: 나르미, the rookie and 달이 in front of the 조달청. It is shown
 ## whole (at most MAX_CROP cut off); a blurred copy (opening_blur.png) fills any spare
 ## space on screens that are not 16:9. Prompt and buttons sit in the empty bottom-right.
+## Once the player starts, a patch of plain sky (opening_press_cover.png from
+## tools/make_title_cover.py) fades in over the drawn "Press Start".
 
 const ART := "res://assets/title/"
 const MAX_CROP := 1.05
+const PRESS_COVER_POS := Vector2(14, 174)  # BOX corner in tools/make_title_cover.py
 
 var _prompt: Label
 var _buttons: VBoxContainer
@@ -16,6 +19,7 @@ var _started := false
 var _t := 0.0
 var _blur: Sprite2D
 var _art: Sprite2D
+var _press_cover: Sprite2D
 var _sound_btn: Button
 
 
@@ -26,6 +30,12 @@ func _ready() -> void:
 		Sound.play_bgm("home")
 	_blur = _picture("opening_blur.png", CanvasItem.TEXTURE_FILTER_LINEAR)
 	_art = _picture("opening.png", CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS)  # painted art, not a pixel grid
+	_press_cover = Sprite2D.new()  # in picture pixels: a child of the art, so it scales with it
+	_press_cover.texture = load(ART + "opening_press_cover.png") as Texture2D
+	_press_cover.centered = false
+	_press_cover.position = PRESS_COVER_POS
+	_press_cover.modulate.a = 0.0
+	_art.add_child(_press_cover)
 
 	var sub := UiTheme.make_label("2026 조달청 AI 게임·콘텐츠 공모전", UiTheme.SIZE_SMALL, Color("fbf3dc"))
 	sub.add_theme_color_override("font_outline_color", Color("261e2c"))
@@ -121,6 +131,7 @@ func _input(event: InputEvent) -> void:
 	if GameState.is_touch_device():
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	_prompt.hide()
+	create_tween().tween_property(_press_cover, "modulate:a", 1.0, 0.3)
 	_buttons.show()
 	(_buttons.get_child(0) as Button).grab_focus()
 
