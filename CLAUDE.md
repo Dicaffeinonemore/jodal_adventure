@@ -144,10 +144,7 @@ scripts/ui/              title_screen.gd, character_create.gd, hud.gd, touch_con
                          그림은 미니게임의 paint_tutorial(RaceGame·QcGame). 그림 안 텍스처는 TutorialPages.tex()로 불러 살아 있게 둔다)
                          phone_menu.gd(Esc 메뉴 = 스마트폰 홈 화면: 시계·체력 배터리·앱 6개(phone_apps.png)·오늘 할 일 알림)
                          volume_window.gd(소리 설정 창: 배경음악·효과음 음량. 타이틀 [소리 설정]과 폰 [소리] 앱, Story.volume_settings())
-                         title_screen.gd(11/21): 오프닝 그림 한 장(tools/ref/opening-screen.png, 제목·Press Start 포함)을 레이어로 잘라 움직인다.
-                         캐릭터 3명 차례로 콩콩 뛰기·"!" 표시 커짐·제목 단어 물결·Press Start 깜빡임·유리창 반짝임. 버튼은 오른쪽 아래.
-                         그림을 바꾸면 python tools/make_title_anim.py -> assets/title/*.png, scripts/ui/title_art.gd(생성 파일), docs/title_anim.gif(미리보기).
-                         움직임 공식은 도구의 animate()와 title_screen.gd의 _process() 두 곳에 있다(Godot은 GIF를 재생하지 못함). title_town.png는 운전 건물 그림 원본으로만 남음
+                         title_screen.gd: 마을(title_town.png 2배) 가운데 조달청 건물(간판·깃발에 픽셀 로고), 지붕 위 타이틀 간판
                          splash_screen.gd(메인 장면): 조달청 로고(assets/splash/pps_logo.png) -> Story.CREDIT("Made By 이승훈") -> 타이틀. 키·탭으로 넘김
 scripts/minigames/race_game.gd   납품 운전(scenes/minigames/drive.tscn, 11/20 고속도로식으로 개편): 위에서 내려다보는 5차선 직선 도로를
                                  조달청 -> 수요기관 건물까지 달린다. 차선형 캐주얼 레이싱의 규칙만 참고(이름·그림·화면 구성은 자체 제작).
