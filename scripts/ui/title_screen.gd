@@ -2,24 +2,41 @@ extends Control
 ## Title: "화면을 터치해서 출근하기". The first tap/key is also the user gesture the
 ## browser needs before it allows fullscreen and audio, so the music starts here.
 
-## The town at 2x (assets title_town.png, 320x180): destinations on both sides and the
-## 조달청 in the middle (its sign and flag carry the pixel logo, drawn into the image),
-## with the title as a banner on its roof. Clouds and a delivery
-## truck move; the cast stands at the entrance. Image coordinates go through _stage.
+## Background: one still (tools/ref/opening-screen.png, title and "Press Start" drawn in)
+## cut into layers by tools/make_title_anim.py: assets/title/*.png, positions and
+## animation numbers in title_art.gd. The three characters hop in turn, the "!" marks pop,
+## the title words wave, "Press Start" blinks and a shine sweeps the windows.
+## docs/title_anim.gif is the same animation; _process() mirrors animate() in the tool.
 
-const SPRITES := "res://assets/sprites/placeholder/"
-const TOWN := Vector2(320, 180)
-const ROOF_Y := 58.0
+const TitleArt := preload("res://scripts/ui/title_art.gd")
+const ART := "res://assets/title/"
+const MAX_CROP := 1.08  # cover the screen but crop at most 8%; blurred edges fill the rest
+const SHINE_SHADER := """
+shader_type canvas_item;
+uniform vec2 tex_size;
+uniform float band = -100000.0;
+uniform float width = 55.0;
+uniform float slope = 0.5;
+uniform float strength = 0.55;
+void fragment() {
+	float a = texture(TEXTURE, UV).a;
+	vec2 p = UV * tex_size;
+	float d = (p.x + slope * p.y - band) / width;
+	COLOR = vec4(1.0, 1.0, 1.0, a * strength * exp(-d * d));
+}
+"""
 
 var _prompt: Label
 var _buttons: VBoxContainer
 var _started := false
 var _t := 0.0
-var _cast: Array[AnimatedSprite2D] = []
+var _blur: Sprite2D
 var _stage: Node2D
-var _clouds: Array[Sprite2D] = []
-var _truck: Sprite2D
-var _banner: VBoxContainer
+var _chars: Array[Sprite2D] = []
+var _marks: Array[Sprite2D] = []
+var _glyphs: Array[Sprite2D] = []
+var _press: Sprite2D
+var _shine: ShaderMaterial
 var _sound_btn: Button
 
 
@@ -28,78 +45,58 @@ func _ready() -> void:
 	UiTheme.apply(self)
 	if Sound.unlocked:  # back from the game: the browser already allows audio
 		Sound.play_bgm("home")
-	var sky := ColorRect.new()
-	sky.color = Color("78bef8")
-	sky.set_anchors_preset(Control.PRESET_FULL_RECT)
-	sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(sky)
+	_blur = Sprite2D.new()
+	_blur.texture = _tex("bg_blur")
+	_blur.centered = false
+	_blur.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	add_child(_blur)
 
 	_stage = Node2D.new()
+	_stage.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS  # painted art, not a pixel grid
 	add_child(_stage)
-	for i in 4:
-		var c := Sprite2D.new()
-		c.texture = load(SPRITES + "cloud.png") as Texture2D
-		c.centered = false
-		c.position = Vector2(i * 90.0 + 10.0, 8.0 + (i % 2) * 14.0)
-		_stage.add_child(c)
-		_clouds.append(c)
-	var town := Sprite2D.new()
-	town.texture = load(SPRITES + "title_town.png") as Texture2D
-	town.centered = false
-	_stage.add_child(town)
-	_truck = Sprite2D.new()
-	_truck.texture = load(SPRITES + "car_player.png") as Texture2D
-	_truck.rotation = PI / 2.0
-	_truck.position = Vector2(-20, 160)
-	_stage.add_child(_truck)
-	for i in 3:  # the cast at the entrance
-		var id: String = ["narumi", "team_leader", "dari"][i]
-		var a := AnimatedSprite2D.new()
-		a.sprite_frames = SpriteUtil.idle_frames(load(Story.npc_sprite(id)) as Texture2D)
-		a.offset = CharacterVisual.FEET_OFFSET
-		a.position = Vector2(140 + i * 20, 150)
-		a.play("idle")
-		a.frame = i % 2
-		_stage.add_child(a)
-		_cast.append(a)
+	_layer("bg", Vector2.ZERO)
+	var glass := _layer(str(TitleArt.GLASS["file"]), TitleArt.GLASS["pos"])
+	var sh := Shader.new()
+	sh.code = SHINE_SHADER
+	_shine = ShaderMaterial.new()
+	_shine.shader = sh
+	_shine.set_shader_parameter("tex_size", TitleArt.GLASS["size"])
+	_shine.set_shader_parameter("width", TitleArt.SHINE_WIDTH)
+	_shine.set_shader_parameter("slope", TitleArt.SHINE_SLOPE)
+	_shine.set_shader_parameter("strength", TitleArt.SHINE_ALPHA)
+	glass.material = _shine
+	for c: Dictionary in TitleArt.CHARACTERS:
+		var s := _layer(str(c["file"]), c["foot"])
+		var tsize := s.texture.get_size()
+		s.offset = Vector2(-tsize.x / 2.0, -tsize.y)  # origin at the feet: hop and squash from there
+		_chars.append(s)
+	for m: Dictionary in TitleArt.MARKS:
+		var s := _layer(str(m["file"]), m["center"])
+		s.centered = true
+		_marks.append(s)
+	for g: Dictionary in TitleArt.GLYPHS:
+		_glyphs.append(_layer(str(g["file"]), g["pos"]))
+	_press = _layer(str(TitleArt.PRESS["file"]), TitleArt.PRESS["pos"])
 
-
-	# title banner on the roof
-	_banner = VBoxContainer.new()
-	_banner.add_theme_constant_override("separation", 0)
-	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_banner)
 	var sub := UiTheme.make_label("2026 조달청 AI 게임·콘텐츠 공모전", UiTheme.SIZE_SMALL, Color("fbf3dc"))
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_color_override("font_outline_color", Color("261e2c"))
 	sub.add_theme_constant_override("outline_size", 4)
-	_banner.add_child(sub)
-	var board := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color("fbf3dc")
-	sb.border_color = Color("261e2c")
-	sb.set_border_width_all(3)
-	sb.set_corner_radius_all(8)
-	sb.content_margin_left = 16
-	sb.content_margin_right = 16
-	sb.content_margin_top = 4
-	sb.content_margin_bottom = 6
-	sb.shadow_color = Color(0, 0, 0, 0.3)
-	sb.shadow_offset = Vector2(0, 3)
-	sb.shadow_size = 1
-	board.add_theme_stylebox_override("panel", sb)
-	_banner.add_child(board)
-	var title := UiTheme.make_label("출근! 조달청 신입", UiTheme.SIZE_LARGE, Color("23489a"), true)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	board.add_child(title)
+	sub.anchor_top = 1.0
+	sub.anchor_bottom = 1.0
+	sub.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	sub.offset_left = 8
+	sub.offset_bottom = -6
+	add_child(sub)
 
+	# Prompt and buttons in the bottom-right corner: the plaza there is empty.
 	var bottom := VBoxContainer.new()
-	bottom.anchor_left = 0.5
-	bottom.anchor_right = 0.5
+	bottom.anchor_left = 1.0
+	bottom.anchor_right = 1.0
 	bottom.anchor_top = 1.0
 	bottom.anchor_bottom = 1.0
+	bottom.offset_right = -UiTheme.edge_margin() - 4.0
 	bottom.offset_bottom = -10
-	bottom.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	bottom.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	bottom.alignment = BoxContainer.ALIGNMENT_END
 	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -122,34 +119,70 @@ func _ready() -> void:
 	_buttons.hide()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
+	_process(0.0)
 
 
-## Covers the screen with the town (scale >= 2) and lines the labels up with it.
+func _tex(file: String) -> Texture2D:
+	return load(ART + file + ".png") as Texture2D
+
+
+func _layer(file: String, pos: Vector2) -> Sprite2D:
+	var s := Sprite2D.new()
+	s.texture = _tex(file)
+	s.centered = false
+	s.position = pos
+	_stage.add_child(s)
+	return s
+
+
+## Covers the screen with the still, cropping at most MAX_CROP; a blurred copy fills
+## what is left. Crops come mostly off the bottom and right: the title is top-left.
 func _layout() -> void:
 	var view := get_viewport_rect().size
-	var s := maxf(view.x / TOWN.x, view.y / TOWN.y)
+	var art: Vector2 = TitleArt.SIZE
+	var cover := maxf(view.x / art.x, view.y / art.y)
+	var contain := minf(view.x / art.x, view.y / art.y)
+	var s := minf(cover, contain * MAX_CROP)
 	_stage.scale = Vector2(s, s)
-	_stage.position = ((view - TOWN * s) / 2.0).round()
-	_banner.reset_size()
-	_banner.position = (Vector2(_to_screen(Vector2(160, 0)).x, _to_screen(Vector2(0, ROOF_Y)).y) 			- Vector2(_banner.size.x / 2.0, _banner.size.y)).round()
+	var spare := view - art * s
+	_stage.position = Vector2(spare.x * (0.5 if spare.x >= 0.0 else 0.15),
+			spare.y * (0.5 if spare.y >= 0.0 else 0.25)).round()
+	var bt := _blur.texture.get_size()
+	var bs := maxf(view.x / bt.x, view.y / bt.y)
+	_blur.scale = Vector2(bs, bs)
+	_blur.position = ((view - bt * bs) / 2.0).round()
 
 
-func _to_screen(p: Vector2) -> Vector2:
-	return _stage.position + p * _stage.scale
+## 0 on the ground .. 1 at the top, two hops per PERIOD (hop() in the tool).
+func _hop(phase: float) -> float:
+	return absf(sin(PI * (2.0 * _t / TitleArt.PERIOD + phase)))
 
 
 func _process(delta: float) -> void:
 	_t += delta
-	for i in _clouds.size():
-		var c := _clouds[i]
-		c.position.x += delta * (4.0 + i * 1.5)
-		if c.position.x > TOWN.x + 10.0:
-			c.position.x = -40.0
-	_truck.position.x += delta * 45.0
-	if _truck.position.x > TOWN.x + 30.0:
-		_truck.position.x = -30.0
+	for i in _chars.size():
+		var c: Dictionary = TitleArt.CHARACTERS[i]
+		var h := _hop(float(c["phase"]))
+		var squash: float = TitleArt.SQUASH * pow(1.0 - h, 4.0)
+		_chars[i].position = (c["foot"] as Vector2) + Vector2(0.0, -float(c["amp"]) * h)
+		_chars[i].scale = Vector2(1.0 + squash, 1.0 - squash)
+	for i in _marks.size():
+		var who: int = TitleArt.MARKS[i]["owner"]
+		var ms := 1.0 + 0.25 * _hop(float(TitleArt.CHARACTERS[who]["phase"]))
+		_marks[i].scale = Vector2(ms, ms)
+	for k in _glyphs.size():
+		var base: Vector2 = TitleArt.GLYPHS[k]["pos"]
+		_glyphs[k].position.y = base.y - TitleArt.TITLE_WAVE * sin(TAU * _t / TitleArt.PERIOD - k * TitleArt.TITLE_STAGGER)
+	var blink_on := fmod(_t, TitleArt.PRESS_CYCLE) < TitleArt.PRESS_ON
+	_press.visible = not _started and blink_on
 	if not _started:
-		_prompt.modulate.a = 0.35 + 0.65 * absf(sin(_t * 2.5))
+		_prompt.modulate.a = 1.0 if blink_on else 0.4
+	# Shine: sweeps for SHINE_TIME of every PERIOD (shine_band() in the tool).
+	var p := fmod(_t, TitleArt.PERIOD) / (TitleArt.PERIOD * TitleArt.SHINE_TIME)
+	var gsize: Vector2 = TitleArt.GLASS["size"]
+	var w: float = TitleArt.SHINE_WIDTH
+	var band := -w * 2.0 + p * (gsize.x + TitleArt.SHINE_SLOPE * gsize.y + w * 4.0) if p <= 1.0 else -100000.0
+	_shine.set_shader_parameter("band", band)
 
 
 func _input(event: InputEvent) -> void:
